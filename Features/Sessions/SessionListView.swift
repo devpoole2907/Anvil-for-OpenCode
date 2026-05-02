@@ -56,7 +56,7 @@ struct SessionListView: View {
         List(selection: $selectionID) {
             ForEach(filteredSessions) { session in
                 NavigationLink(value: session.id) {
-                    SessionRowView(session: session, isActive: selectionID == session.id)
+                    SessionRowView(session: session)
                 }
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {

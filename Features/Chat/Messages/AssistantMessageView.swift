@@ -16,7 +16,6 @@ struct AssistantMessageView: View {
                     ))
             }
         }
-        .animation(.spring(response: 0.28, dampingFraction: 0.84), value: grouped)
     }
 
     /// Groups consecutive context tools (read/glob/grep/list) into a single ContextToolGroupView.
@@ -49,7 +48,7 @@ enum GroupedItem: Identifiable, Hashable {
     var id: String {
         switch self {
         case .single(let part): part.id
-        case .contextGroup(let parts): "ctx-\(parts.map(\.id).joined(separator: "-"))"
+        case .contextGroup(let parts): "ctx-\(parts.first?.id ?? "empty")"
         }
     }
 }

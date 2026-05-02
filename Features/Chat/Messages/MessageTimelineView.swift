@@ -2,94 +2,95 @@ import SwiftUI
 
 struct MessageTimelineView: View {
     let store: ChatStore
-    @State private var isAtBottom: Bool = true
+
+    @State private var scrollTargetID: ScrollTargetID?
 
     var body: some View {
-        ScrollViewReader { proxy in
-            timelineScrollView
-            .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .scrollDismissesKeyboard(.interactively)
-            .background(Color.clear)
-            .onAppear {
-                scrollToBottom(proxy: proxy, animated: false)
-            }
-            .onChange(of: store.turns) {
-                scrollToBottomIfNeeded(proxy: proxy)
-            }
-            .onChange(of: store.working) {
-                scrollToBottomIfNeeded(proxy: proxy)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                jumpToLatestButton(proxy: proxy)
+        Group {
+            if store.loading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.turns.isEmpty && !store.working {
+                ChatEmptyState()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                timelineScrollView
             }
         }
     }
 
-    private static let bottomAnchor = "__bottom__"
-
-    @ViewBuilder
     private var timelineScrollView: some View {
         ScrollView {
-            VStack {
-                LazyVStack(alignment: .leading, spacing: Spacing.l) {
-                    ForEach(store.turns) { turn in
-                        TurnView(turn: turn)
-                            .id(turn.id)
-                            .padding(.horizontal, Spacing.l)
-                    }
-                    if store.working, store.turns.last?.assistantParts.isEmpty == true {
-                        ThinkingIndicatorView()
-                            .padding(.horizontal, Spacing.l)
-                    }
+            LazyVStack(alignment: .leading, spacing: Spacing.l) {
+                ForEach(store.turns) { turn in
+                    TurnView(turn: turn)
+                        .id(ScrollTargetID.turn(turn.id))
+                        .padding(.horizontal, Spacing.l)
                 }
-                .scrollTargetLayout()
-                .padding(.vertical, Spacing.l)
-                .frame(maxWidth: 800)
-
-                Color.clear
-                    .frame(height: 1)
-                    .id(MessageTimelineView.bottomAnchor)
-                    .onScrollVisibilityChange(threshold: 0.2) { isVisible in
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            isAtBottom = isVisible
-                        }
-                    }
+                if showsThinkingIndicator {
+                    ThinkingIndicatorView()
+                        .id(ScrollTargetID.thinking)
+                        .padding(.horizontal, Spacing.l)
+                }
             }
+            .scrollTargetLayout()
+            .padding(.vertical, Spacing.l)
+            .frame(maxWidth: 800)
             .frame(maxWidth: .infinity)
         }
-    }
-
-    @ViewBuilder
-    private func jumpToLatestButton(proxy: ScrollViewProxy) -> some View {
-        if !isAtBottom {
-            Button {
-                scrollToBottom(proxy: proxy, animated: true)
-            } label: {
-                Image(systemName: "arrow.down")
-                    .font(.headline.weight(.semibold))
-                    .frame(width: 40, height: 40)
+        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        .scrollDismissesKeyboard(.interactively)
+        .scrollPosition(id: $scrollTargetID, anchor: .bottom)
+        .onChange(of: bottomTargetID) { oldValue, newValue in
+            guard let newValue else { return }
+            let wasPinnedToBottom = oldValue == nil || scrollTargetID == nil || scrollTargetID == oldValue
+            guard wasPinnedToBottom else { return }
+            scrollToTarget(newValue)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if let bottomTargetID, !isPinnedToBottom(bottomTargetID) {
+                Button {
+                    scrollToTarget(bottomTargetID)
+                } label: {
+                    Image(systemName: "arrow.down")
+                        .font(.headline.weight(.semibold))
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.glass)
+                .tint(.accentColor)
+                .padding(.trailing, Spacing.l)
+                .padding(.bottom, Spacing.l)
+                .accessibilityLabel("Jump to latest message")
             }
-            .buttonStyle(.glass)
-            .tint(.accentColor)
-            .padding(.trailing, Spacing.l)
-            .padding(.bottom, Spacing.l)
-            .accessibilityLabel("Jump to latest message")
         }
     }
 
-    private func scrollToBottomIfNeeded(proxy: ScrollViewProxy) {
-        guard isAtBottom else { return }
-        scrollToBottom(proxy: proxy, animated: true)
+    private var showsThinkingIndicator: Bool {
+        store.working && store.turns.last?.assistantParts.isEmpty == true
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
-        let action = {
-            proxy.scrollTo(MessageTimelineView.bottomAnchor, anchor: .bottom)
+    private var bottomTargetID: ScrollTargetID? {
+        if showsThinkingIndicator {
+            return .thinking
         }
-        if animated {
-            withAnimation(.easeOut(duration: 0.2), action)
-        } else {
-            action()
+        return store.turns.last.map { .turn($0.id) }
+    }
+
+    private func isPinnedToBottom(_ bottomTargetID: ScrollTargetID) -> Bool {
+        scrollTargetID == nil || scrollTargetID == bottomTargetID
+    }
+
+    private func scrollToTarget(_ target: ScrollTargetID) {
+        withAnimation(.easeOut(duration: 0.2)) {
+            withTransaction(\.scrollTargetAnchor, .bottom) {
+                scrollTargetID = target
+            }
         }
     }
+}
+
+private enum ScrollTargetID: Hashable {
+    case turn(String)
+    case thinking
 }

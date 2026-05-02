@@ -8,6 +8,7 @@ struct ChatView: View {
     @State private var showPermissionSheet: Bool = false
     @State private var showRenameAlert: Bool = false
     @State private var renameText: String = ""
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ChatContent(
@@ -36,6 +37,11 @@ struct ChatView: View {
             Button("Cancel", role: .cancel) {}
         }
         .task(load)
+        .onDisappear {
+            if horizontalSizeClass == .compact {
+                appModel.clearActiveChat(ifMatches: session.id)
+            }
+        }
     }
 
     // MARK: - Trailing toolbar menu
@@ -276,19 +282,9 @@ private struct ChatContent: View {
             TodoDockView()
 
             if let store {
-                if store.loading {
-                    ProgressView()
-                        .frame(maxHeight: .infinity)
-                        .transition(.opacity)
-                } else if store.turns.isEmpty && !store.working {
-                    ChatEmptyState()
-                        .frame(maxHeight: .infinity)
-                        .transition(.opacity)
-                } else {
-                    MessageTimelineView(store: store)
-                        .frame(maxHeight: .infinity)
-                        .transition(.opacity)
-                }
+                MessageTimelineView(store: store)
+                    .frame(maxHeight: .infinity)
+                    .transition(.opacity)
             } else {
                 ProgressView()
                     .frame(maxHeight: .infinity)
@@ -306,7 +302,7 @@ private struct ChatContent: View {
 
 // MARK: - Empty state
 
-private struct ChatEmptyState: View {
+struct ChatEmptyState: View {
     @Environment(AppModel.self) private var appModel
 
     var body: some View {

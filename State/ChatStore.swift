@@ -25,10 +25,16 @@ final class ChatStore {
     private var activeDirectory: String?
 
     private let client: OpencodeClient
+    private let setSessionBusy: @MainActor @Sendable (String, Bool) -> Void
 
-    init(client: OpencodeClient, sessionID: String) {
+    init(
+        client: OpencodeClient,
+        sessionID: String,
+        setSessionBusy: @escaping @MainActor @Sendable (String, Bool) -> Void
+    ) {
         self.client = client
         self.sessionID = sessionID
+        self.setSessionBusy = setSessionBusy
     }
 
     // MARK: - Loading
@@ -58,6 +64,7 @@ final class ChatStore {
             withAnimation {
                 working = inferredWorking
             }
+            setSessionBusy(sessionID, inferredWorking)
             if inferredWorking {
                 startWorkingResyncLoop(directory: directory)
             }
@@ -95,6 +102,7 @@ final class ChatStore {
         withAnimation {
             working = true
         }
+        setSessionBusy(sessionID, true)
         print("[ChatStore:\(sessionID.prefix(8))] send() called, working=true")
         do {
             try await client.sendPrompt(sessionID: sessionID, directory: directory, body: body)
@@ -107,6 +115,7 @@ final class ChatStore {
             withAnimation {
                 working = false
             }
+            setSessionBusy(sessionID, false)
         }
     }
 
@@ -116,6 +125,7 @@ final class ChatStore {
         withAnimation {
             working = false
         }
+        setSessionBusy(sessionID, false)
         do {
             try await client.interrupt(sessionID: sessionID, directory: directory)
         } catch {
@@ -134,6 +144,7 @@ final class ChatStore {
                 let shouldBeBusy = status == "busy" && (hasEverSent || !messages.isEmpty)
                 print("[ChatStore:\(sessionID.prefix(8))] session.status=\(status) hasEverSent=\(hasEverSent) messages=\(messages.count) → working=\(shouldBeBusy)")
                 working = shouldBeBusy
+                setSessionBusy(sessionID, shouldBeBusy)
                 if shouldBeBusy, let activeDirectory {
                     startWorkingResyncLoop(directory: activeDirectory)
                 } else {
@@ -287,9 +298,11 @@ final class ChatStore {
                     guard self.activeDirectory == capturedDirectory else { return }
                     if self.isPromptComplete(baselineMessageCount: baselineMessageCount) {
                         self.working = false
+                        self.setSessionBusy(self.sessionID, false)
                         return
                     }
                     self.working = true
+                    self.setSessionBusy(self.sessionID, true)
                 } catch {
                     self.lastError = OpencodeError(error)
                 }
@@ -297,6 +310,7 @@ final class ChatStore {
                 try? await Task.sleep(for: .milliseconds(delay))
             }
             self.working = false
+            self.setSessionBusy(self.sessionID, false)
         }
     }
 
@@ -315,6 +329,7 @@ final class ChatStore {
                     let inferredWorking = self.inferredWorkingState
                     await MainActor.run {
                         self.working = inferredWorking
+                        self.setSessionBusy(self.sessionID, inferredWorking)
                     }
                     if !inferredWorking {
                         return
@@ -326,6 +341,7 @@ final class ChatStore {
             }
             await MainActor.run {
                 self.working = false
+                self.setSessionBusy(self.sessionID, false)
             }
         }
     }

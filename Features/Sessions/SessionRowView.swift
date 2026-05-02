@@ -2,8 +2,8 @@ import SwiftUI
 
 struct SessionRowView: View {
     let session: Session
-    let isActive: Bool
     @Environment(AppModel.self) private var appModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         HStack(spacing: Spacing.m) {
@@ -42,7 +42,7 @@ struct SessionRowView: View {
         if isBusy {
             return "In Progress"
         }
-        if isActive {
+        if horizontalSizeClass != .compact, appModel.activeChatID == session.id {
             return "Active"
         }
         return nil

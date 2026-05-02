@@ -70,7 +70,7 @@ final class SessionStore {
         case .sessionStatus(let id, let status):
             if status == "busy" {
                 busySessionIDs.insert(id)
-            } else {
+            } else if status == "idle" {
                 busySessionIDs.remove(id)
             }
         default:
@@ -80,6 +80,14 @@ final class SessionStore {
 
     func isSessionBusy(_ sessionID: String) -> Bool {
         busySessionIDs.contains(sessionID)
+    }
+
+    func setBusy(_ sessionID: String, isBusy: Bool) {
+        if isBusy {
+            busySessionIDs.insert(sessionID)
+        } else {
+            busySessionIDs.remove(sessionID)
+        }
     }
 
     func clear() {

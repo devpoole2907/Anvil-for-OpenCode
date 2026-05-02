@@ -19,7 +19,7 @@ final class AppModel {
     var serverHealth: HealthInfo?
     var startupError: OpencodeError?
     var chatStore: ChatStore?
-    var currentChatSessionID: String?
+    var activeChatID: String?
 
     private var eventStreamTask: Task<Void, Never>?
     private var reconnectAttempt: Int = 0
@@ -68,7 +68,7 @@ final class AppModel {
             eventStreamTask?.cancel()
             eventStreamTask = nil
             chatStore = nil
-            currentChatSessionID = nil
+            activeChatID = nil
             sessionStore.clear()
 
             activeProfile = newProfile
@@ -94,7 +94,7 @@ final class AppModel {
             eventStreamTask = nil
             permissionStore.clear()
             chatStore = nil
-            currentChatSessionID = nil
+            activeChatID = nil
             projectStore.setActive(project)
             preferences.setLastActiveProject(project.id, for: activeProfile.id)
         }
@@ -158,8 +158,10 @@ final class AppModel {
         let delay = min(30_000, 500 * Int(pow(2.0, Double(reconnectAttempt - 1))))
         try? await Task.sleep(for: .milliseconds(delay))
         guard !Task.isCancelled else { return }
+        guard let directory = projectStore.active?.directory else { return }
+        await sessionStore.refresh(directory: directory)
         // Resync session messages on reconnect — we may have missed events.
-        if let store = chatStore, let directory = projectStore.active?.directory {
+        if let store = chatStore {
             await store.load(directory: directory)
         }
         startEventStream(directory: directory)
@@ -168,20 +170,31 @@ final class AppModel {
     // MARK: - Chat
 
     func openChat(for session: Session) -> ChatStore {
-        currentChatSessionID = session.id
+        activeChatID = session.id
         if let chatStore, chatStore.sessionID == session.id {
             print("[AppModel] openChat: reusing existing store for sessionID=\(session.id)")
             return chatStore
         }
         print("[AppModel] openChat: sessionID=\(session.id) '\(session.displayTitle)'")
-        let store = ChatStore(client: client, sessionID: session.id)
+        let store = ChatStore(
+            client: client,
+            sessionID: session.id,
+            setSessionBusy: { [weak self] sessionID, isBusy in
+                self?.sessionStore.setBusy(sessionID, isBusy: isBusy)
+            }
+        )
         chatStore = store
         return store
     }
 
+    func clearActiveChat(ifMatches sessionID: String? = nil) {
+        if let sessionID, activeChatID != sessionID { return }
+        activeChatID = nil
+    }
+
     func closeChat() {
         chatStore = nil
-        currentChatSessionID = nil
+        activeChatID = nil
     }
 
     // MARK: - Models
