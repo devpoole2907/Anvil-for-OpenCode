@@ -16,7 +16,7 @@ struct CollapsibleSection<Header: View, Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
+        VStack(alignment: .leading, spacing: 0) {
             Button(action: toggle) {
                 HStack(spacing: Spacing.s) {
                     header
@@ -34,10 +34,11 @@ struct CollapsibleSection<Header: View, Content: View>: View {
 
             if isExpanded {
                 content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .padding(.top, Spacing.s)
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut, value: isExpanded)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
     }
 
     private func toggle() {

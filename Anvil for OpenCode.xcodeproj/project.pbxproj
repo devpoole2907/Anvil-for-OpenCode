@@ -154,6 +154,7 @@
 			);
 			name = "Anvil for OpenCode";
 			packageProductDependencies = (
+				7CBC94012FA57B9A00D3EE96 /* MarkdownUI */,
 			);
 			productName = "Anvil for OpenCode";
 			productReference = 7CBC92082FA57B9A00D3EE96 /* Anvil for OpenCode.app */;
@@ -212,6 +213,9 @@
 				7CBC92072FA57B9A00D3EE96 /* Anvil for OpenCode */,
 				7CBC930A2FA57B9A00D3EE96 /* AnvilTests */,
 			);
+			packageReferences = (
+				7CBC94002FA57B9A00D3EE96 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+			);
 		};
 /* End PBXProject section */
 
@@ -249,6 +253,25 @@
 			targetProxy = 7CBCA2E22FA5832300D3EE96 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7CBC94002FA57B9A00D3EE96 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7CBC94012FA57B9A00D3EE96 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7CBC94002FA57B9A00D3EE96 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		7CBC92112FA57B9B00D3EE96 /* Debug */ = {

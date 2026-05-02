@@ -6,29 +6,46 @@ struct MessageTimelineView: View {
     @State private var isUserScrolled: Bool = false
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.l) {
-                ForEach(store.turns) { turn in
-                    TurnView(turn: turn)
-                        .id(turn.id)
-                        .padding(.horizontal, Spacing.l)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack {
+                    LazyVStack(alignment: .leading, spacing: Spacing.l) {
+                        ForEach(store.turns) { turn in
+                            TurnView(turn: turn)
+                                .id(turn.id)
+                                .padding(.horizontal, Spacing.l)
+                        }
+                        if store.working, store.turns.last?.assistantParts.isEmpty == true {
+                            ThinkingIndicatorView()
+                                .padding(.horizontal, Spacing.l)
+                        }
+                        Color.clear
+                            .frame(height: 1)
+                            .id(MessageTimelineView.bottomAnchor)
+                    }
+                    .padding(.vertical, Spacing.l)
+                    .frame(maxWidth: 800)
                 }
-                if store.working, store.turns.last?.assistantParts.isEmpty == true {
-                    ThinkingIndicatorView()
-                        .padding(.horizontal, Spacing.l)
-                }
-                Color.clear
-                    .frame(height: 1)
-                    .id(MessageTimelineView.bottomAnchor)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.vertical, Spacing.l)
-        }
-        .scrollPosition(id: $scrollAnchor, anchor: .bottom)
-        .onChange(of: store.turns.count) {
-            scrollToBottomIfNeeded()
-        }
-        .onChange(of: lastPartTextLength) {
-            scrollToBottomIfNeeded()
+            .scrollDismissesKeyboard(.interactively)
+            .scrollPosition(id: $scrollAnchor, anchor: .bottom)
+            .background(Color.clear)
+            .onAppear {
+                scrollToBottom(proxy: proxy, animated: false)
+            }
+            .onChange(of: store.turns.count) {
+                scrollToBottom(proxy: proxy, animated: true)
+            }
+            .onChange(of: latestMessageID) {
+                scrollToBottom(proxy: proxy, animated: true)
+            }
+            .onChange(of: lastPartTextLength) {
+                scrollToBottom(proxy: proxy, animated: true)
+            }
+            .onChange(of: store.working) {
+                scrollToBottom(proxy: proxy, animated: true)
+            }
         }
     }
 
@@ -41,10 +58,19 @@ struct MessageTimelineView: View {
         return textPart.text.count
     }
 
-    private func scrollToBottomIfNeeded() {
-        // NOTE: With ScrollView's `scrollPosition`, anchoring to the bottom sentinel
-        // produces auto-scroll on new content. A future polish: detect manual scroll
-        // and only auto-scroll when the user is near the bottom.
+    private var latestMessageID: String? {
+        store.turns.last?.assistantMessages.last?.id ?? store.turns.last?.userMessage.id
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         scrollAnchor = MessageTimelineView.bottomAnchor
+        let action = {
+            proxy.scrollTo(MessageTimelineView.bottomAnchor, anchor: .bottom)
+        }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2), action)
+        } else {
+            action()
+        }
     }
 }

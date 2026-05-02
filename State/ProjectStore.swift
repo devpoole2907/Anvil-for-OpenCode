@@ -6,6 +6,7 @@ import Observation
 final class ProjectStore {
     var projects: [Project] = []
     var active: Project?
+    var config: ConfigInfo?
     var loading: Bool = false
     var lastError: OpencodeError?
 
@@ -23,6 +24,26 @@ final class ProjectStore {
             projects = fetched.sorted()
         } catch {
             lastError = OpencodeError(error)
+        }
+    }
+
+    func refreshConfig(directory: String) async {
+        do {
+            config = try await client.config(directory: directory)
+        } catch {
+            print("[ProjectStore] refreshConfig error: \(error)")
+        }
+    }
+
+    func toggleMCP(serverName: String, disabled: Bool, directory: String) async {
+        do {
+            try await client.toggleMCP(serverName: serverName, disabled: disabled, directory: directory)
+            // Optimistically update local config state
+            if config?.mcpServers != nil {
+                config!.mcpServers![serverName]?.disabled = disabled
+            }
+        } catch {
+            print("[ProjectStore] toggleMCP error: \(error)")
         }
     }
 

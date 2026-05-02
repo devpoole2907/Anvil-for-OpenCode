@@ -5,21 +5,26 @@ struct ContextToolGroupRow: View {
 
     var body: some View {
         let info = ToolInfoMap.info(for: part.tool, input: part.state.input)
-        Label {
-            HStack(spacing: Spacing.s) {
-                Text(info.title)
-                if let subtitle = info.subtitle {
+        HStack(spacing: Spacing.m) {
+            Image(systemName: info.icon)
+                .frame(width: 24, height: 24)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            HStack(spacing: Spacing.xs) {
+                Text(info.title).bold()
+                if let subtitle = info.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Spacer(minLength: Spacing.s)
-                ToolStatusIndicator(state: part.state)
             }
-        } icon: {
-            Image(systemName: info.icon)
+
+            Spacer(minLength: Spacing.s)
+            ToolStatusIndicator(state: part.state)
         }
         .font(.callout)
+        .padding(.vertical, 2)
     }
 }

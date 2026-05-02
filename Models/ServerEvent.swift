@@ -11,6 +11,21 @@ struct SSEEnvelope: Decodable, Sendable {
     }
 
     let payload: Payload
+
+    private enum CodingKeys: String, CodingKey {
+        case payload
+        case type
+        case properties
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let payload = try container.decodeIfPresent(Payload.self, forKey: .payload) {
+            self.payload = payload
+        } else {
+            self.payload = try Payload(from: decoder)
+        }
+    }
 }
 
 // MARK: - ServerEvent
@@ -20,7 +35,7 @@ enum ServerEvent: Sendable {
     case sessionDeleted(sessionID: String)
     case messageUpdated(Message)
     case messageRemoved(sessionID: String, messageID: String)
-    case messagePartUpdated(Part)
+    case messagePartUpdated(part: Part, delta: String?)
     case messagePartDelta(MessagePartDelta)
     case messagePartRemoved(sessionID: String, messageID: String, partID: String)
     case permissionUpdated(Permission)
@@ -45,6 +60,9 @@ enum ServerEvent: Sendable {
             if let props = envelope.payload.properties,
                let payload = props.decoded(SessionDeletedPayload.self) {
                 self = .sessionDeleted(sessionID: payload.sessionID)
+            } else if let props = envelope.payload.properties,
+                      let info: Session = props.decoded(SessionUpdatedPayload.self)?.info {
+                self = .sessionDeleted(sessionID: info.id)
             } else {
                 self = .ignored(type: type)
             }
@@ -64,8 +82,8 @@ enum ServerEvent: Sendable {
             }
         case "message.part.updated":
             if let props = envelope.payload.properties,
-               let part: Part = props.decoded(MessagePartUpdatedPayload.self)?.part {
-                self = .messagePartUpdated(part)
+               let payload = props.decoded(MessagePartUpdatedPayload.self) {
+                self = .messagePartUpdated(part: payload.part, delta: payload.delta)
             } else {
                 self = .ignored(type: type)
             }
@@ -91,6 +109,9 @@ enum ServerEvent: Sendable {
             if let props = envelope.payload.properties,
                let info: Permission = props.decoded(PermissionUpdatedPayload.self)?.info {
                 self = .permissionUpdated(info)
+            } else if let props = envelope.payload.properties,
+                      let permission: Permission = props.decoded(Permission.self) {
+                self = .permissionUpdated(permission)
             } else {
                 self = .ignored(type: type)
             }
@@ -107,6 +128,13 @@ enum ServerEvent: Sendable {
             if let props = envelope.payload.properties,
                let payload: SessionStatusPayload = props.decoded(SessionStatusPayload.self) {
                 self = .sessionStatus(sessionID: payload.sessionID, status: payload.status.type)
+            } else {
+                self = .ignored(type: type)
+            }
+        case "session.idle":
+            if let props = envelope.payload.properties,
+               let payload: SessionIdlePayload = props.decoded(SessionIdlePayload.self) {
+                self = .sessionStatus(sessionID: payload.sessionID, status: "idle")
             } else {
                 self = .ignored(type: type)
             }
@@ -150,6 +178,7 @@ struct MessageRemovedPayload: Decodable {
 
 struct MessagePartUpdatedPayload: Decodable {
     let part: Part
+    let delta: String?
 }
 
 struct MessagePartRemovedPayload: Decodable {
@@ -171,5 +200,23 @@ struct SessionStatusPayload: Decodable {
     let status: StatusPayload
     struct StatusPayload: Decodable {
         let type: String
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if let type = try? container.decode(String.self) {
+                self.type = type
+            } else {
+                let keyed = try decoder.container(keyedBy: CodingKeys.self)
+                self.type = try keyed.decode(String.self, forKey: .type)
+            }
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+        }
     }
+}
+
+struct SessionIdlePayload: Decodable {
+    let sessionID: String
 }

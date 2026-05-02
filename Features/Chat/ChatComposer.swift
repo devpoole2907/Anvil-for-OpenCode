@@ -5,58 +5,245 @@ struct ChatComposer: View {
     var onSend: (String) -> Void
     var onInterrupt: () -> Void
 
+    @Environment(AppModel.self) private var appModel
     @State private var text: String = ""
     @State private var showAttachments: Bool = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
-            HStack(alignment: .bottom, spacing: Spacing.s) {
-                Button("Attach", systemImage: "paperclip", action: { showAttachments = true })
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: TapTarget.minimum, minHeight: TapTarget.minimum)
-                    .accessibilityLabel("Add attachment")
-
-                TextField(placeholder, text: $text, axis: .vertical)
-                    .lineLimit(1...8)
-                    .focused($isFocused)
-                    .disabled(isWorking)
-                    .padding(Spacing.s)
-                    .background(.thinMaterial)
-                    .clipShape(.rect(cornerRadius: Radii.medium))
-
-                sendOrStopButton
-            }
-            .padding(Spacing.s)
-            .background(.regularMaterial)
+            composerContainer
+                .frame(maxWidth: 800)
         }
+        .frame(maxWidth: .infinity)
         .sheet(isPresented: $showAttachments) {
             AttachmentPickerSheet()
         }
     }
 
-    private var placeholder: String {
-        isWorking ? "Working…" : "Send a message"
+    // MARK: - Composer container
+
+    private var composerContainer: some View {
+        VStack(spacing: 0) {
+            // Mode row
+            modeRow
+                .padding(.horizontal, Spacing.l)
+                .padding(.top, Spacing.m)
+                .padding(.bottom, Spacing.s)
+
+            Divider()
+                .opacity(0.4)
+
+            // Input row
+            inputRow
+                .padding(.horizontal, Spacing.l)
+                .padding(.vertical, Spacing.l)
+        }
+        .glassEffect(in: .rect(cornerRadius: Radii.large, style: .continuous))
+        .padding(.horizontal, Spacing.m)
+        .padding(.bottom, Spacing.s)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onChanged { value in
+                    // Only dismiss if the swipe is significantly downward and mostly vertical.
+                    // This avoids interfering with horizontal text selection and minor cursor adjustments.
+                    let isVertical = value.translation.height > abs(value.translation.width) * 1.5
+                    if isVertical && value.translation.height > 35 && isFocused {
+                        isFocused = false
+                    }
+                }
+        )
     }
+
+    // MARK: - Mode row
+
+    private var modeRow: some View {
+        @Bindable var prefs = appModel.preferences
+        return HStack(spacing: Spacing.s) {
+            Menu {
+                Picker("Mode", selection: $prefs.selectedMode) {
+                    ForEach(PromptMode.allCases) { mode in
+                        Label(mode.displayName, systemImage: mode.systemImage).tag(mode)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: appModel.preferences.selectedMode.systemImage)
+                        .font(.caption.bold())
+                    Text(appModel.preferences.selectedMode.displayName)
+                        .font(.caption.bold())
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Spacing.s)
+                .padding(.vertical, 5)
+                .background(.tertiary.opacity(0.5))
+                .clipShape(.capsule)
+            }
+            .buttonStyle(.plain)
+            .onChange(of: prefs.selectedMode) {
+                withAnimation { }
+            }
+
+            modelPicker
+
+            effortPicker
+
+            Spacer()
+        }
+    }
+
+    private var modelPicker: some View {
+        Menu {
+            ForEach(appModel.providerStore.providers) { provider in
+                Menu(provider.name) {
+                    ForEach(provider.models) { model in
+                        Button {
+                            let ref = ModelRef(providerID: provider.id, modelID: model.id)
+                            withAnimation {
+                                appModel.preferences.setDefaultModel(ref, for: appModel.activeProfile.id)
+                            }
+                            appModel.haptics.selection()
+                        } label: {
+                            HStack {
+                                if appModel.isModelActive(provider: provider, model: model) {
+                                    Image(systemName: "checkmark")
+                                }
+                                Text(model.displayName)
+                                let tags = provider.modelTags[model.id] ?? []
+                                if !tags.isEmpty {
+                                    Text("(\(tags.sorted().joined(separator: ", ")))")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if appModel.providerStore.providers.isEmpty {
+                Text("No models available")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                    .font(.caption.bold())
+                Text(selectedModelNameWithTags)
+                    .font(.caption.bold())
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, 5)
+            .background(.tertiary.opacity(0.5))
+            .clipShape(.capsule)
+        }
+    }
+
+    private var effortPicker: some View {
+        @Bindable var prefs = appModel.preferences
+        return Menu {
+            Picker("Effort", selection: $prefs.selectedEffort) {
+                ForEach(PromptEffort.allCases) { effort in
+                    Text(effort.displayName).tag(effort)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bolt.fill")
+                    .font(.caption.bold())
+                Text(appModel.preferences.selectedEffort.displayName)
+                    .font(.caption.bold())
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, 5)
+            .background(.tertiary.opacity(0.5))
+            .clipShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .onChange(of: prefs.selectedEffort) {
+            withAnimation { }
+        }
+    }
+
+    // MARK: - Input row
+
+    private var inputRow: some View {
+        HStack(alignment: .bottom, spacing: Spacing.s) {
+            TextField(placeholder, text: $text, axis: .vertical)
+                .lineLimit(1...8)
+                .focused($isFocused)
+                .disabled(isWorking)
+
+            // Attachment + send/stop grouped on the right
+            HStack(spacing: Spacing.xs) {
+                Button("Attach", systemImage: "paperclip", action: { showAttachments = true })
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Add attachment")
+
+                sendOrStopButton
+            }
+        }
+    }
+
+    // MARK: - Send / Stop button
 
     private var sendOrStopButton: some View {
         Group {
             if isWorking {
-                Button("Stop", systemImage: "stop.fill", role: .destructive, action: onInterrupt)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .accessibilityLabel("Stop generating")
+                Button(action: onInterrupt) {
+                    Image(systemName: "stop.fill")
+                        .font(.body.bold())
+                        .frame(width: 30, height: 30)
+                        .foregroundStyle(.white)
+                        .background(.red, in: .circle)
+                }
+                .accessibilityLabel("Stop generating")
             } else {
-                Button("Send", systemImage: "arrow.up.circle.fill", action: send)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityLabel("Send message")
+                Button(action: send) {
+                    Image(systemName: "arrow.up")
+                        .font(.body.bold())
+                        .frame(width: 30, height: 30)
+                        .foregroundStyle(.white)
+                        .background(
+                            canSend ? Color.accentColor : Color.secondary.opacity(0.3),
+                            in: .circle
+                        )
+                }
+                .disabled(!canSend)
+                .accessibilityLabel("Send message")
             }
         }
-        .frame(minWidth: TapTarget.minimum, minHeight: TapTarget.minimum)
+    }
+
+    // MARK: - Helpers
+
+    private var canSend: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var placeholder: String {
+        isWorking ? "Working…" : "Message"
+    }
+
+    private var selectedModelNameWithTags: String {
+        guard let ref = appModel.selectedModel,
+              let model = appModel.providerStore.model(matching: ref) else {
+            return "No Model"
+        }
+        let tags = appModel.tagsForModel(providerID: ref.providerID, modelID: ref.modelID)
+        if tags.isEmpty {
+            return model.displayName
+        } else {
+            return "\(model.displayName) (\(tags.sorted().joined(separator: ", ")))"
+        }
     }
 
     private func send() {

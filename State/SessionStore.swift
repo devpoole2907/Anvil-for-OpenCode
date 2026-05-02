@@ -37,6 +37,22 @@ final class SessionStore {
         sessions.removeAll { $0.id == session.id }
     }
 
+    func rename(_ session: Session, title: String, directory: String) async throws -> Session {
+        let updated = try await client.updateSessionTitle(id: session.id, directory: directory, title: title)
+        if let index = sessions.firstIndex(where: { $0.id == updated.id }) {
+            sessions[index] = updated
+        }
+        return updated
+    }
+
+    func share(_ session: Session, directory: String) async throws -> Session {
+        let updated = try await client.shareSession(id: session.id, directory: directory)
+        if let index = sessions.firstIndex(where: { $0.id == updated.id }) {
+            sessions[index] = updated
+        }
+        return updated
+    }
+
     func apply(_ event: ServerEvent) {
         switch event {
         case .sessionUpdated(let session):

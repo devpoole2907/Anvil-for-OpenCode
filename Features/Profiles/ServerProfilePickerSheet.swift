@@ -6,6 +6,7 @@ struct ServerProfilePickerSheet: View {
     @State private var profiles: [ServerProfile] = []
     @State private var loadError: String?
     @State private var showAdd: Bool = false
+    @State private var profileToDelete: ServerProfile?
 
     var body: some View {
         NavigationStack {
@@ -22,8 +23,10 @@ struct ServerProfilePickerSheet: View {
                             onSelect: { switchTo(profile) }
                         )
                         .swipeActions {
-                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                delete(profile)
+                            if profile.id != appModel.activeProfile.id {
+                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                    profileToDelete = profile
+                                }
                             }
                         }
                     }
@@ -49,6 +52,23 @@ struct ServerProfilePickerSheet: View {
             }
             .sheet(isPresented: $showAdd) {
                 AddProfileSheet(onAdded: handleAdded)
+            }
+            .alert(
+                "Delete Profile?",
+                isPresented: Binding(
+                    get: { profileToDelete != nil },
+                    set: { if !$0 { profileToDelete = nil } }
+                ),
+                presenting: profileToDelete
+            ) { profile in
+                Button("Delete", role: .destructive) {
+                    delete(profile)
+                }
+                Button("Cancel", role: .cancel) {
+                    profileToDelete = nil
+                }
+            } message: { profile in
+                Text("Are you sure you want to delete \"\(profile.name)\"?")
             }
             .task(reload)
         }

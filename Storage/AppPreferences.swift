@@ -15,6 +15,8 @@ final class AppPreferences {
         static let lastActiveProjectID = "lastActiveProjectID"
         static let defaultModelByProfile = "defaultModelByProfile"
         static let showReasoning = "showReasoning"
+        static let selectedMode = "selectedMode"
+        static let selectedEffort = "selectedEffort"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -23,6 +25,8 @@ final class AppPreferences {
         self._lastActiveProjectID = Self.readDictionary(defaults, key: Key.lastActiveProjectID)
         self._defaultModelByProfile = Self.readModelMap(defaults, key: Key.defaultModelByProfile)
         self._showReasoning = defaults.object(forKey: Key.showReasoning) as? Bool ?? true
+        self._selectedMode = PromptMode(rawValue: defaults.string(forKey: Key.selectedMode) ?? "") ?? .code
+        self._selectedEffort = PromptEffort(rawValue: defaults.string(forKey: Key.selectedEffort) ?? "") ?? .medium
     }
 
     // MARK: - Active profile
@@ -84,6 +88,28 @@ final class AppPreferences {
             map.removeValue(forKey: profile.uuidString)
         }
         defaultModelByProfile = map
+    }
+
+    // MARK: - Selected mode
+
+    private var _selectedMode: PromptMode
+    var selectedMode: PromptMode {
+        get { access(keyPath: \._selectedMode); return _selectedMode }
+        set {
+            withMutation(keyPath: \._selectedMode) { _selectedMode = newValue }
+            defaults.set(newValue.rawValue, forKey: Key.selectedMode)
+        }
+    }
+
+    // MARK: - Selected effort
+
+    private var _selectedEffort: PromptEffort
+    var selectedEffort: PromptEffort {
+        get { access(keyPath: \._selectedEffort); return _selectedEffort }
+        set {
+            withMutation(keyPath: \._selectedEffort) { _selectedEffort = newValue }
+            defaults.set(newValue.rawValue, forKey: Key.selectedEffort)
+        }
     }
 
     // MARK: - Show reasoning

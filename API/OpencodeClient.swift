@@ -55,6 +55,18 @@ actor OpencodeClient {
         try await get("/config", directory: directory)
     }
 
+    func toggleMCP(serverName: String, disabled: Bool, directory: String) async throws {
+        struct MCPPatch: Encodable {
+            let mcpServers: [String: MCPState]
+        }
+        struct MCPState: Encodable {
+            let disabled: Bool
+        }
+        let body = MCPPatch(mcpServers: [serverName: MCPState(disabled: disabled)])
+        // Send a PATCH to /config to update just the mcpServers subset
+        try await sendVoid(.patch, "/config", directory: directory, body: body)
+    }
+
     func providers(directory: String) async throws -> ProviderListResponse {
         try await get("/config/providers", directory: directory)
     }
@@ -77,6 +89,10 @@ actor OpencodeClient {
     func updateSessionTitle(id: String, directory: String, title: String) async throws -> Session {
         struct Body: Encodable { let title: String }
         return try await send(.patch, "/session/\(id)", directory: directory, body: Body(title: title))
+    }
+
+    func shareSession(id: String, directory: String) async throws -> Session {
+        return try await send(.post, "/session/\(id)/share", directory: directory, body: Optional<EmptyBody>.none)
     }
 
     func deleteSession(id: String, directory: String) async throws {

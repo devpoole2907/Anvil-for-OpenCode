@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct SessionListView: View {
+    @Binding var selection: Session?
+    var onCreatedSession: (Session) -> Void = { _ in }
+
     @Environment(AppModel.self) private var appModel
     @State private var searchText: String = ""
     @State private var showSettings: Bool = false
     @State private var creatingError: String?
+    @State private var sessionToDelete: Session?
 
     var body: some View {
         Group {
@@ -19,7 +23,7 @@ struct SessionListView: View {
             }
         }
         .toolbar { toolbarContent }
-        .navigationTitle("")
+        .navigationTitle("Workspace")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search sessions")
         .refreshable(action: refresh)
@@ -40,7 +44,7 @@ struct SessionListView: View {
                 .accessibilityLabel("Settings")
         }
         ToolbarItem(placement: .principal) {
-            ProjectMenu()
+            WorkspaceTitleMenu()
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button("New Session", systemImage: "plus", action: createSession)
@@ -49,19 +53,36 @@ struct SessionListView: View {
     }
 
     private var sessionList: some View {
-        List {
+        List(selection: $selection) {
             ForEach(filteredSessions) { session in
                 NavigationLink(value: session) {
                     SessionRowView(session: session)
                 }
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
-                        delete(session)
+                        sessionToDelete = session
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .alert(
+            "Delete Chat?",
+            isPresented: Binding(
+                get: { sessionToDelete != nil },
+                set: { if !$0 { sessionToDelete = nil } }
+            ),
+            presenting: sessionToDelete
+        ) { session in
+            Button("Delete", role: .destructive) {
+                delete(session)
+            }
+            Button("Cancel", role: .cancel) {
+                sessionToDelete = nil
+            }
+        } message: { session in
+            Text("Are you sure you want to delete \"\(session.displayTitle)\"? This cannot be undone.")
+        }
     }
 
     private var filteredSessions: [Session] {
@@ -88,12 +109,19 @@ struct SessionListView: View {
     }
 
     private func createSession() {
-        guard let directory = appModel.projectStore.active?.directory else { return }
+        guard let directory = appModel.projectStore.active?.directory else {
+            print("[SessionList] createSession: no active directory")
+            return
+        }
+        print("[SessionList] createSession: calling API for directory=\(directory)")
         Task {
             do {
-                _ = try await appModel.sessionStore.create(title: nil, directory: directory)
+                let session = try await appModel.sessionStore.create(title: nil, directory: directory)
+                print("[SessionList] createSession: success, session=\(session.id)")
                 appModel.haptics.success()
+                onCreatedSession(session)
             } catch {
+                print("[SessionList] createSession: error=\(error)")
                 creatingError = OpencodeError(error).errorDescription
                 appModel.haptics.error()
             }
@@ -105,10 +133,71 @@ struct SessionListView: View {
         Task {
             do {
                 try await appModel.sessionStore.delete(session, directory: directory)
-                appModel.haptics.success()
+                withAnimation {
+                    appModel.haptics.success()
+                }
             } catch {
                 creatingError = OpencodeError(error).errorDescription
             }
+        }
+    }
+}
+
+// MARK: - Workspace title menu
+
+private struct WorkspaceTitleMenu: View {
+    @Environment(AppModel.self) private var appModel
+
+    var body: some View {
+        Menu {
+            ForEach(appModel.projectStore.projects) { project in
+                Button(action: { select(project) }) {
+                    if isActive(project) {
+                        Label(project.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(project.displayName)
+                    }
+                }
+            }
+            if appModel.projectStore.projects.isEmpty {
+                Text("No workspaces available")
+            }
+        } label: {
+            VStack(spacing: 1) {
+                HStack(spacing: 4) {
+                    Text(appModel.projectStore.active?.displayName ?? "Choose workspace")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                }
+                Text("Workspace")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        if let active = appModel.projectStore.active {
+            "Switch workspace, currently \(active.displayName)"
+        } else {
+            "Choose a workspace"
+        }
+    }
+
+    private func isActive(_ project: Project) -> Bool {
+        appModel.projectStore.active?.id == project.id
+    }
+
+    private func select(_ project: Project) {
+        Task {
+            await appModel.setActiveProject(project)
         }
     }
 }

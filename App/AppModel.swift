@@ -63,33 +63,37 @@ final class AppModel {
     }
 
     func switchProfile(_ newProfile: ServerProfile) async {
-        eventStreamTask?.cancel()
-        eventStreamTask = nil
-        chatStore = nil
-        sessionStore.clear()
+        withAnimation {
+            eventStreamTask?.cancel()
+            eventStreamTask = nil
+            chatStore = nil
+            sessionStore.clear()
 
-        activeProfile = newProfile
-        let newClient = OpencodeClient(
-            baseURL: newProfile.url,
-            username: newProfile.username,
-            password: newProfile.password
-        )
-        client = newClient
-        projectStore = ProjectStore(client: newClient)
-        sessionStore = SessionStore(client: newClient)
-        providerStore = ProviderStore(client: newClient)
-        permissionStore = PermissionStore(client: newClient)
-        preferences.activeProfileID = newProfile.id
+            activeProfile = newProfile
+            let newClient = OpencodeClient(
+                baseURL: newProfile.url,
+                username: newProfile.username,
+                password: newProfile.password
+            )
+            client = newClient
+            projectStore = ProjectStore(client: newClient)
+            sessionStore = SessionStore(client: newClient)
+            providerStore = ProviderStore(client: newClient)
+            permissionStore = PermissionStore(client: newClient)
+            preferences.activeProfileID = newProfile.id
+        }
         await start()
     }
 
     func setActiveProject(_ project: Project) async {
         guard project.id != projectStore.active?.id else { return }
-        eventStreamTask?.cancel()
-        eventStreamTask = nil
-        permissionStore.clear()
-        projectStore.setActive(project)
-        preferences.setLastActiveProject(project.id, for: activeProfile.id)
+        withAnimation {
+            eventStreamTask?.cancel()
+            eventStreamTask = nil
+            permissionStore.clear()
+            projectStore.setActive(project)
+            preferences.setLastActiveProject(project.id, for: activeProfile.id)
+        }
         await loadActiveProject(directory: project.directory)
     }
 
@@ -107,7 +111,8 @@ final class AppModel {
     private func loadActiveProject(directory: String) async {
         async let sessionsRefresh: Void = sessionStore.refresh(directory: directory)
         async let providersRefresh: Void = providerStore.refresh(directory: directory)
-        _ = await (sessionsRefresh, providersRefresh)
+        async let configRefresh: Void = projectStore.refreshConfig(directory: directory)
+        _ = await (sessionsRefresh, providersRefresh, configRefresh)
         startEventStream(directory: directory)
     }
 
@@ -159,6 +164,7 @@ final class AppModel {
     // MARK: - Chat
 
     func openChat(for session: Session) -> ChatStore {
+        print("[AppModel] openChat: sessionID=\(session.id) '\(session.displayTitle)'")
         let store = ChatStore(client: client, sessionID: session.id)
         chatStore = store
         return store
@@ -166,5 +172,21 @@ final class AppModel {
 
     func closeChat() {
         chatStore = nil
+    }
+
+    // MARK: - Models
+
+    var selectedModel: ModelRef? {
+        preferences.defaultModel(for: activeProfile.id)
+            ?? providerStore.defaultModelRef()
+    }
+
+    func isModelActive(provider: ProviderInfo, model: ModelInfo) -> Bool {
+        guard let active = selectedModel else { return false }
+        return active.providerID == provider.id && active.modelID == model.id
+    }
+
+    func tagsForModel(providerID: String, modelID: String) -> Set<String> {
+        providerStore.providers.first { $0.id == providerID }?.modelTags[modelID] ?? []
     }
 }

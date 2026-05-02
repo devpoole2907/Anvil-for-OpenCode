@@ -21,8 +21,11 @@ struct ModelPickerSheet: View {
                 ForEach(appModel.providerStore.providers) { provider in
                     DisclosureGroup(provider.name) {
                         ForEach(provider.models) { model in
+                            let tags = provider.modelTags[model.id] ?? []
+                            let displayName = tags.isEmpty ? model.displayName : "\(model.displayName) (\(tags.sorted().joined(separator: ", ")))"
                             ModelRowView(
                                 model: model,
+                                displayName: displayName,
                                 isSelected: isSelected(provider: provider, model: model),
                                 onSelect: { select(provider: provider, model: model) }
                             )
