@@ -248,7 +248,7 @@ final class ChatStore {
     private func scheduleEventResync() {
         guard let activeDirectory else { return }
         eventResyncTask?.cancel()
-        eventResyncTask = Task { [weak self] in
+        eventResyncTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }

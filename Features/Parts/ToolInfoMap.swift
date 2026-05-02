@@ -28,10 +28,17 @@ enum ToolInfoMap {
     }
 
     private static func filename(from path: String?) -> String? {
-        guard let path = path else { return nil }
-        // Take the first path if it's a list (e.g. "foo.swift (+1 more)")
-        let firstPath = path.components(separatedBy: " ").first ?? path
-        return firstPath.components(separatedBy: "/").last
+        guard let path = path, !path.isEmpty else { return nil }
+        // Strip trailing annotation like " (+N more)"
+        let pathWithoutAnnotation: String
+        if let annotationIndex = path.range(of: " (")?.lowerBound {
+            pathWithoutAnnotation = String(path[..<annotationIndex])
+        } else {
+            pathWithoutAnnotation = path
+        }
+        // Extract the last path component using URL
+        let component = URL(fileURLWithPath: pathWithoutAnnotation).lastPathComponent
+        return component.isEmpty ? nil : component
     }
 
     static func info(for tool: String, input: AnyCodable?) -> Info {

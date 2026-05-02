@@ -226,7 +226,10 @@ struct ChatComposer: View {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        guard let ref = appModel.selectedModel,
+              appModel.providerStore.model(matching: ref) != nil else { return false }
+        return true
     }
 
     private var placeholder: String {

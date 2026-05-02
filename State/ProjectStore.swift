@@ -31,7 +31,7 @@ final class ProjectStore {
         do {
             config = try await client.config(directory: directory)
         } catch {
-            print("[ProjectStore] refreshConfig error: \(error)")
+            lastError = OpencodeError(error)
         }
     }
 
@@ -43,7 +43,7 @@ final class ProjectStore {
                 config!.mcpServers![serverName]?.disabled = disabled
             }
         } catch {
-            print("[ProjectStore] toggleMCP error: \(error)")
+            lastError = OpencodeError(error)
         }
     }
 

@@ -3,7 +3,6 @@ import SwiftUI
 struct MessageTimelineView: View {
     let store: ChatStore
     @State private var scrollAnchor: String?
-    @State private var isUserScrolled: Bool = false
 
     var body: some View {
         ScrollViewReader { proxy in
