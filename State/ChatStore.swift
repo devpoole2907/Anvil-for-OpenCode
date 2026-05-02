@@ -44,10 +44,7 @@ final class ChatStore {
         do {
             try await syncMessages(directory: directory)
             // Don't infer working from message state on load — session.status events are authoritative.
-            withAnimation {
-                working = false
-            }
-            print("[ChatStore:\(sessionID.prefix(8))] load() complete: \(messages.count) messages, working=false")
+            print("[ChatStore:\(sessionID.prefix(8))] load() complete: \(messages.count) messages")
         } catch {
             print("[ChatStore:\(sessionID.prefix(8))] load() error: \(error)")
             lastError = OpencodeError(error)
@@ -60,13 +57,13 @@ final class ChatStore {
         activeDirectory = directory
         let body = PromptBody(parts: [.text(text)], model: model, mode: mode?.rawValue, effort: effort?.rawValue)
         let baselineMessageCount = messages.count
-        hasEverSent = true
         withAnimation {
             working = true
         }
         print("[ChatStore:\(sessionID.prefix(8))] send() called, working=true")
         do {
             try await client.sendPrompt(sessionID: sessionID, directory: directory, body: body)
+            hasEverSent = true
             print("[ChatStore:\(sessionID.prefix(8))] send() prompt submitted OK")
             startSendResyncLoop(directory: directory, baselineMessageCount: baselineMessageCount)
         } catch {
@@ -220,6 +217,11 @@ final class ChatStore {
             nextParts[envelope.info.id] = envelope.parts
         }
         parts = nextParts
+        // Remove buffered deltas for parts that now exist in the snapshot to avoid re-applying stale deltas
+        let allPartIDs = Set(nextParts.values.flatMap { $0.map(\.id) })
+        for partID in allPartIDs {
+            pendingDeltas.removeValue(forKey: partID)
+        }
     }
 
     private func startSendResyncLoop(directory: String, baselineMessageCount: Int) {

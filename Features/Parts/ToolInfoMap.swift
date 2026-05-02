@@ -31,8 +31,16 @@ enum ToolInfoMap {
         guard let path = path, !path.isEmpty else { return nil }
         // Strip trailing annotation like " (+N more)"
         let pathWithoutAnnotation: String
-        if let annotationIndex = path.range(of: " (")?.lowerBound {
-            pathWithoutAnnotation = String(path[..<annotationIndex])
+        if let annotationIndex = path.range(of: " (+")?.lowerBound {
+            // Verify it matches the pattern " (+<digits> more)"
+            let suffix = String(path[annotationIndex...])
+            let pattern = #"^ \(\+\d+ more\)$"#
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               regex.firstMatch(in: suffix, range: NSRange(suffix.startIndex..., in: suffix)) != nil {
+                pathWithoutAnnotation = String(path[..<annotationIndex])
+            } else {
+                pathWithoutAnnotation = path
+            }
         } else {
             pathWithoutAnnotation = path
         }
