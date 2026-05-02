@@ -34,6 +34,10 @@ final class ChatStore {
 
     func load(directory: String) async {
         print("[ChatStore:\(sessionID.prefix(8))] load() start")
+        sendResyncTask?.cancel()
+        sendResyncTask = nil
+        eventResyncTask?.cancel()
+        eventResyncTask = nil
         activeDirectory = directory
         loading = true
         defer {
@@ -54,6 +58,10 @@ final class ChatStore {
     // MARK: - Sending
 
     func send(text: String, directory: String, model: ModelRef?, mode: PromptMode?, effort: PromptEffort?) async {
+        sendResyncTask?.cancel()
+        sendResyncTask = nil
+        eventResyncTask?.cancel()
+        eventResyncTask = nil
         activeDirectory = directory
         let body = PromptBody(parts: [.text(text)], model: model, mode: mode?.rawValue, effort: effort?.rawValue)
         let baselineMessageCount = messages.count
@@ -77,6 +85,7 @@ final class ChatStore {
 
     func interrupt(directory: String) async {
         sendResyncTask?.cancel()
+        sendResyncTask = nil
         withAnimation {
             working = false
         }
@@ -100,6 +109,7 @@ final class ChatStore {
                 working = shouldBeBusy
                 if !shouldBeBusy {
                     sendResyncTask?.cancel()
+                    sendResyncTask = nil
                 }
 
             case .messageUpdated(let message) where message.sessionID == sessionID:
@@ -226,12 +236,16 @@ final class ChatStore {
 
     private func startSendResyncLoop(directory: String, baselineMessageCount: Int) {
         sendResyncTask?.cancel()
+        sendResyncTask = nil
         sendResyncTask = Task { [weak self] in
             guard let self else { return }
+            let capturedDirectory = directory
             for attempt in 0..<600 {
                 guard !Task.isCancelled else { return }
+                guard self.activeDirectory == capturedDirectory else { return }
                 do {
                     try await self.syncMessages(directory: directory)
+                    guard self.activeDirectory == capturedDirectory else { return }
                     if self.isPromptComplete(baselineMessageCount: baselineMessageCount) {
                         self.working = false
                         return
@@ -250,12 +264,16 @@ final class ChatStore {
     private func scheduleEventResync() {
         guard let activeDirectory else { return }
         eventResyncTask?.cancel()
+        eventResyncTask = nil
         eventResyncTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let capturedDirectory = activeDirectory
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
+            guard self.activeDirectory == capturedDirectory else { return }
             do {
-                try await self.syncMessages(directory: activeDirectory)
+                try await self.syncMessages(directory: capturedDirectory)
+                guard self.activeDirectory == capturedDirectory else { return }
             } catch {
                 self.lastError = OpencodeError(error)
             }
