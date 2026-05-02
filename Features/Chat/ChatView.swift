@@ -17,11 +17,11 @@ struct ChatView: View {
             onSend: send,
             onInterrupt: interrupt
         )
-        .navigationTitle(session.displayTitle)
+        .navigationTitle(currentSession.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                ChatNavTitle(session: session)
+                ChatNavTitle(session: currentSession)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 chatMenu
@@ -36,37 +36,40 @@ struct ChatView: View {
             Button("Cancel", role: .cancel) {}
         }
         .task(load)
-        .onDisappear {
-            appModel.closeChat()
-        }
     }
 
     // MARK: - Trailing toolbar menu
 
     private var chatMenu: some View {
         Menu {
-            // MCP Servers Submenu
-            if let mcpServers = appModel.projectStore.config?.mcpServers, !mcpServers.isEmpty {
-                Menu {
-                    ForEach(mcpServers.keys.sorted(), id: \.self) { serverName in
-                        if let config = mcpServers[serverName] {
-                            let isEnabled = !(config.disabled ?? false)
-                            Button {
-                                toggleMCP(serverName: serverName, currentlyEnabled: isEnabled)
-                            } label: {
-                                if isEnabled {
-                                    Label(serverName, systemImage: "checkmark")
-                                } else {
-                                    Text(serverName)
-                                }
+            Menu {
+                if mcpServerEntries.isEmpty {
+                    Text("No MCP servers found")
+                    Button("Reload MCP Config") {
+                        refreshMCPConfig()
+                    }
+                } else {
+                    ForEach(mcpServerEntries, id: \.name) { server in
+                        Button {
+                            toggleMCP(serverName: server.name, isEnabled: !server.isEnabled)
+                        } label: {
+                            if server.isEnabled {
+                                Label(server.name, systemImage: "checkmark")
+                            } else {
+                                Text(server.name)
                             }
                         }
                     }
-                } label: {
-                    Label("MCP Servers", systemImage: "network")
+                    Divider()
+                    Button("Reload MCP Config") {
+                        refreshMCPConfig()
+                    }
                 }
-                Divider()
+            } label: {
+                Label("MCP Servers", systemImage: "network")
             }
+
+            Divider()
 
             // Model submenu
             Menu {
@@ -110,7 +113,7 @@ struct ChatView: View {
             }
 
             Button {
-                renameText = session.title ?? ""
+                renameText = currentSession.title ?? ""
                 showRenameAlert = true
             } label: {
                 Label("Rename", systemImage: "pencil")
@@ -136,14 +139,21 @@ struct ChatView: View {
         print("[ChatView] load() complete: messages=\(chatStore.messages.count) working=\(chatStore.working)")
     }
 
-    private func send(text: String) {
+    private func send(text: String, attachments: [PendingAttachment]) {
         guard let store, let directory = appModel.projectStore.active?.directory else { return }
         let model = appModel.selectedModel
         let mode = appModel.preferences.selectedMode
         let effort = appModel.preferences.selectedEffort
         appModel.haptics.selection()
         Task {
-            await store.send(text: text, directory: directory, model: model, mode: mode, effort: effort)
+            await store.send(
+                text: text,
+                attachments: attachments,
+                directory: directory,
+                model: model,
+                mode: mode,
+                effort: effort
+            )
         }
     }
 
@@ -160,7 +170,7 @@ struct ChatView: View {
         guard !trimmed.isEmpty, let directory = appModel.projectStore.active?.directory else { return }
         Task {
             do {
-                try await appModel.sessionStore.rename(session, title: trimmed, directory: directory)
+                _ = try await appModel.sessionStore.rename(currentSession, title: trimmed, directory: directory)
             } catch {
                 print("[ChatView] rename error: \(error)")
             }
@@ -171,7 +181,7 @@ struct ChatView: View {
         guard let directory = appModel.projectStore.active?.directory else { return }
         Task {
             do {
-                let updated = try await appModel.sessionStore.share(session, directory: directory)
+                let updated = try await appModel.sessionStore.share(currentSession, directory: directory)
                 if let urlString = updated.share?.url {
                     UIPasteboard.general.string = urlString
                     appModel.haptics.success()
@@ -183,13 +193,43 @@ struct ChatView: View {
         }
     }
 
-    private func toggleMCP(serverName: String, currentlyEnabled: Bool) {
+    private var currentSession: Session {
+        appModel.sessionStore.sessions.first(where: { $0.id == session.id }) ?? session
+    }
+
+    private var mcpServerEntries: [MCPServerEntry] {
+        let servers = appModel.projectStore.config?.mcpServers ?? [:]
+        return servers.keys.sorted().map { name in
+            MCPServerEntry(
+                name: name,
+                isEnabled: !(servers[name]?.disabled ?? false)
+            )
+        }
+    }
+
+    private func toggleMCP(serverName: String, isEnabled: Bool) {
         guard let directory = appModel.projectStore.active?.directory else { return }
         Task {
-            await appModel.projectStore.toggleMCP(serverName: serverName, disabled: currentlyEnabled, directory: directory)
+            await appModel.projectStore.toggleMCP(
+                serverName: serverName,
+                disabled: !isEnabled,
+                directory: directory
+            )
             appModel.haptics.selection()
         }
     }
+
+    private func refreshMCPConfig() {
+        guard let directory = appModel.projectStore.active?.directory else { return }
+        Task {
+            await appModel.projectStore.refreshConfig(directory: directory)
+        }
+    }
+}
+
+private struct MCPServerEntry: Hashable {
+    let name: String
+    let isEnabled: Bool
 }
 
 // MARK: - Nav title (session name + workspace subtitle)
@@ -220,7 +260,7 @@ private struct ChatContent: View {
     let store: ChatStore?
     let permissionStore: PermissionStore
     @Binding var showPermissionSheet: Bool
-    var onSend: (String) -> Void
+    var onSend: (String, [PendingAttachment]) -> Void
     var onInterrupt: () -> Void
 
     @Environment(AppModel.self) private var appModel

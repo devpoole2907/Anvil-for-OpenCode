@@ -52,18 +52,32 @@ actor OpencodeClient {
     // MARK: - Config & Providers
 
     func config(directory: String) async throws -> ConfigInfo {
-        try await get("/config", directory: directory)
+        let data = try await performRequest(method: .get, path: "/config", directory: directory, body: Optional<EmptyBody>.none)
+        if let body = String(data: data, encoding: .utf8) {
+            print("[OpencodeClient] /config raw response for directory=\(directory): \(body)")
+        } else {
+            print("[OpencodeClient] /config raw response for directory=\(directory): <non-UTF8 \(data.count) bytes>")
+        }
+        do {
+            let decoded = try decoder.decode(ConfigInfo.self, from: data)
+            let names = decoded.mcpServers?.keys.sorted() ?? []
+            print("[OpencodeClient] /config decoded MCP servers: \(names)")
+            return decoded
+        } catch {
+            print("[OpencodeClient] /config decode error: \(error)")
+            throw OpencodeError.decoding(String(describing: error))
+        }
     }
 
-    func toggleMCP(serverName: String, disabled: Bool, directory: String) async throws {
+    func toggleMCP(serverName: String, config: MCPConfig, directory: String) async throws {
         struct MCPPatch: Encodable {
-            let mcpServers: [String: MCPState]
+            let mcp: [String: MCPConfig]
         }
-        struct MCPState: Encodable {
-            let disabled: Bool
+        let body = MCPPatch(mcp: [serverName: config])
+        if let data = try? encoder.encode(body),
+           let rawBody = String(data: data, encoding: .utf8) {
+            print("[OpencodeClient] toggleMCP request body for server=\(serverName): \(rawBody)")
         }
-        let body = MCPPatch(mcpServers: [serverName: MCPState(disabled: disabled)])
-        // Send a PATCH to /config to update just the mcpServers subset
         try await sendVoid(.patch, "/config", directory: directory, body: body)
     }
 

@@ -6,10 +6,13 @@ struct GlobToolView: View {
     var body: some View {
         let info = ToolInfoMap.info(for: part.tool, input: part.state.input)
         BasicToolView(info: info, state: part.state) {
-            if let count = matchCount {
-                Text("^[\(count) match](inflect: true)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                if let count = matchCount {
+                    Text("^[\(count) match](inflect: true)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ToolCallDetailsView(part: part)
             }
         }
     }

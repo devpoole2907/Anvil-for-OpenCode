@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SessionListView: View {
-    @Binding var selection: Session?
+    @Binding var selectionID: String?
     var onCreatedSession: (Session) -> Void = { _ in }
 
     @Environment(AppModel.self) private var appModel
@@ -53,10 +53,10 @@ struct SessionListView: View {
     }
 
     private var sessionList: some View {
-        List(selection: $selection) {
+        List(selection: $selectionID) {
             ForEach(filteredSessions) { session in
-                NavigationLink(value: session) {
-                    SessionRowView(session: session)
+                NavigationLink(value: session.id) {
+                    SessionRowView(session: session, isActive: selectionID == session.id)
                 }
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
@@ -86,7 +86,7 @@ struct SessionListView: View {
     }
 
     private var filteredSessions: [Session] {
-        let all = appModel.sessionStore.sessions
+        let all = appModel.sessionStore.sessions.filter { $0.parentID == nil }
         guard !searchText.isEmpty else { return all }
         return all.filter { $0.displayTitle.localizedStandardContains(searchText) }
     }

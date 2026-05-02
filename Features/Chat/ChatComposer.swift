@@ -1,13 +1,25 @@
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
+
+#if os(iOS)
+import UIKit
+#endif
 
 struct ChatComposer: View {
     let isWorking: Bool
-    var onSend: (String) -> Void
+    var onSend: (String, [PendingAttachment]) -> Void
     var onInterrupt: () -> Void
 
     @Environment(AppModel.self) private var appModel
     @State private var text: String = ""
-    @State private var showAttachments: Bool = false
+    @State private var attachments: [PendingAttachment] = []
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var showAttachmentOptions: Bool = false
+    @State private var showPhotoPicker: Bool = false
+    @State private var showFileImporter: Bool = false
+    @State private var showCameraCapture: Bool = false
+    @State private var attachmentError: String?
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -16,8 +28,59 @@ struct ChatComposer: View {
                 .frame(maxWidth: 800)
         }
         .frame(maxWidth: .infinity)
-        .sheet(isPresented: $showAttachments) {
-            AttachmentPickerSheet()
+        .confirmationDialog("Add Attachment", isPresented: $showAttachmentOptions, titleVisibility: .visible) {
+            Button("Choose Photos") {
+                showPhotoPicker = true
+            }
+            Button("Choose Files") {
+                showFileImporter = true
+            }
+            #if os(iOS)
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take Photo") {
+                    showCameraCapture = true
+                }
+            }
+            #endif
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhotoItems,
+            maxSelectionCount: 10,
+            selectionBehavior: .ordered,
+            matching: .images
+        )
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true,
+            onCompletion: importFiles
+        )
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showCameraCapture) {
+            AttachmentCameraCaptureView(
+                onCapture: { attachment in
+                    attachments.append(attachment)
+                    showCameraCapture = false
+                },
+                onCancel: {
+                    showCameraCapture = false
+                }
+            )
+            .ignoresSafeArea()
+        }
+        #endif
+        .alert("Attachment Error", isPresented: Binding(
+            get: { attachmentError != nil },
+            set: { if !$0 { attachmentError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(attachmentError ?? "")
+        }
+        .onChange(of: selectedPhotoItems) {
+            guard !selectedPhotoItems.isEmpty else { return }
+            importPhotos(from: selectedPhotoItems)
         }
     }
 
@@ -34,8 +97,12 @@ struct ChatComposer: View {
             Divider()
                 .opacity(0.4)
 
-            // Input row
-            inputRow
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                if !attachments.isEmpty {
+                    attachmentRow
+                }
+                inputRow
+            }
                 .padding(.horizontal, Spacing.l)
                 .padding(.vertical, Spacing.l)
         }
@@ -181,14 +248,42 @@ struct ChatComposer: View {
                 .focused($isFocused)
                 .disabled(isWorking)
 
-            // Attachment + send/stop grouped on the right
-            HStack(spacing: Spacing.xs) {
-                Button("Attach", systemImage: "paperclip", action: { showAttachments = true })
+            HStack(spacing: Spacing.s) {
+                Button("Attach", systemImage: "paperclip", action: { showAttachmentOptions = true })
                     .labelStyle(.iconOnly)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("Add attachment")
 
                 sendOrStopButton
+            }
+        }
+    }
+
+    private var attachmentRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.s) {
+                ForEach(attachments) { attachment in
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "paperclip")
+                            .font(.caption)
+                            .accessibilityHidden(true)
+                        Text(attachment.filename)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Button {
+                            removeAttachment(attachment)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(attachment.filename)")
+                    }
+                    .padding(.horizontal, Spacing.s)
+                    .padding(.vertical, 6)
+                    .background(.tertiary.opacity(0.5))
+                    .clipShape(.capsule)
+                }
             }
         }
     }
@@ -226,7 +321,8 @@ struct ChatComposer: View {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard hasText || !attachments.isEmpty else { return false }
         guard let ref = appModel.selectedModel,
               appModel.providerStore.model(matching: ref) != nil else { return false }
         return true
@@ -251,8 +347,52 @@ struct ChatComposer: View {
 
     private func send() {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        onSend(trimmed)
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return }
+        onSend(trimmed, attachments)
         text = ""
+        attachments = []
+    }
+
+    private func removeAttachment(_ attachment: PendingAttachment) {
+        attachments.removeAll { $0.id == attachment.id }
+    }
+
+    private func importPhotos(from items: [PhotosPickerItem]) {
+        Task {
+            do {
+                var imported: [PendingAttachment] = []
+                for (index, item) in items.enumerated() {
+                    guard let data = try await item.loadTransferable(type: Data.self) else { continue }
+                    let mediaType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
+                    let filename = "Photo \(index + 1).\(item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg")"
+                    imported.append(.fromData(data, filename: filename, mediaType: mediaType))
+                }
+                await MainActor.run {
+                    attachments.append(contentsOf: imported)
+                    selectedPhotoItems = []
+                }
+            } catch {
+                await MainActor.run {
+                    attachmentError = error.localizedDescription
+                    selectedPhotoItems = []
+                }
+            }
+        }
+    }
+
+    private func importFiles(_ result: Result<[URL], Error>) {
+        Task {
+            do {
+                let urls = try result.get()
+                let imported = try urls.map(PendingAttachment.fromFileURL)
+                await MainActor.run {
+                    attachments.append(contentsOf: imported)
+                }
+            } catch {
+                await MainActor.run {
+                    attachmentError = error.localizedDescription
+                }
+            }
+        }
     }
 }

@@ -2,67 +2,87 @@ import SwiftUI
 
 struct MessageTimelineView: View {
     let store: ChatStore
-    @State private var scrollAnchor: String?
+    @State private var isAtBottom: Bool = true
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack {
-                    LazyVStack(alignment: .leading, spacing: Spacing.l) {
-                        ForEach(store.turns) { turn in
-                            TurnView(turn: turn)
-                                .id(turn.id)
-                                .padding(.horizontal, Spacing.l)
-                        }
-                        if store.working, store.turns.last?.assistantParts.isEmpty == true {
-                            ThinkingIndicatorView()
-                                .padding(.horizontal, Spacing.l)
-                        }
-                        Color.clear
-                            .frame(height: 1)
-                            .id(MessageTimelineView.bottomAnchor)
-                    }
-                    .padding(.vertical, Spacing.l)
-                    .frame(maxWidth: 800)
-                }
-                .frame(maxWidth: .infinity)
-            }
+            timelineScrollView
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             .scrollDismissesKeyboard(.interactively)
-            .scrollPosition(id: $scrollAnchor, anchor: .bottom)
             .background(Color.clear)
             .onAppear {
                 scrollToBottom(proxy: proxy, animated: false)
             }
-            .onChange(of: store.turns.count) {
-                scrollToBottom(proxy: proxy, animated: true)
-            }
-            .onChange(of: latestMessageID) {
-                scrollToBottom(proxy: proxy, animated: true)
-            }
-            .onChange(of: lastPartTextLength) {
-                scrollToBottom(proxy: proxy, animated: true)
+            .onChange(of: store.turns) {
+                scrollToBottomIfNeeded(proxy: proxy)
             }
             .onChange(of: store.working) {
-                scrollToBottom(proxy: proxy, animated: true)
+                scrollToBottomIfNeeded(proxy: proxy)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                jumpToLatestButton(proxy: proxy)
             }
         }
     }
 
     private static let bottomAnchor = "__bottom__"
 
-    private var lastPartTextLength: Int {
-        guard let last = store.turns.last,
-              case .text(let textPart) = last.assistantParts.last
-        else { return 0 }
-        return textPart.text.count
+    @ViewBuilder
+    private var timelineScrollView: some View {
+        ScrollView {
+            VStack {
+                LazyVStack(alignment: .leading, spacing: Spacing.l) {
+                    ForEach(store.turns) { turn in
+                        TurnView(turn: turn)
+                            .id(turn.id)
+                            .padding(.horizontal, Spacing.l)
+                    }
+                    if store.working, store.turns.last?.assistantParts.isEmpty == true {
+                        ThinkingIndicatorView()
+                            .padding(.horizontal, Spacing.l)
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.vertical, Spacing.l)
+                .frame(maxWidth: 800)
+
+                Color.clear
+                    .frame(height: 1)
+                    .id(MessageTimelineView.bottomAnchor)
+                    .onScrollVisibilityChange(threshold: 0.2) { isVisible in
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            isAtBottom = isVisible
+                        }
+                    }
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 
-    private var latestMessageID: String? {
-        store.turns.last?.assistantMessages.last?.id ?? store.turns.last?.userMessage.id
+    @ViewBuilder
+    private func jumpToLatestButton(proxy: ScrollViewProxy) -> some View {
+        if !isAtBottom {
+            Button {
+                scrollToBottom(proxy: proxy, animated: true)
+            } label: {
+                Image(systemName: "arrow.down")
+                    .font(.headline.weight(.semibold))
+                    .frame(width: 40, height: 40)
+            }
+            .buttonStyle(.glass)
+            .tint(.accentColor)
+            .padding(.trailing, Spacing.l)
+            .padding(.bottom, Spacing.l)
+            .accessibilityLabel("Jump to latest message")
+        }
+    }
+
+    private func scrollToBottomIfNeeded(proxy: ScrollViewProxy) {
+        guard isAtBottom else { return }
+        scrollToBottom(proxy: proxy, animated: true)
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
-        scrollAnchor = MessageTimelineView.bottomAnchor
         let action = {
             proxy.scrollTo(MessageTimelineView.bottomAnchor, anchor: .bottom)
         }

@@ -5,17 +5,19 @@ struct ToolHeaderView: View {
     let state: ToolState
 
     var body: some View {
-        HStack(spacing: Spacing.m) {
+        HStack(spacing: Spacing.s) {
             Image(systemName: info.icon)
-                .frame(width: 24, height: 24)
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 20, height: 20)
                 .foregroundStyle(iconColor)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(info.title).bold()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(info.title)
+                    .font(.subheadline.weight(.semibold))
                 if let subtitle = info.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)

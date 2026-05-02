@@ -2,11 +2,11 @@ import SwiftUI
 
 struct LoadedRootView: View {
     @Bindable var appModel: AppModel
-    @State private var selectedSession: Session?
+    @State private var selectedSessionID: String?
 
     var body: some View {
         NavigationSplitView {
-            SessionListView(selection: $selectedSession, onCreatedSession: navigateToSession)
+            SessionListView(selectionID: $selectedSessionID, onCreatedSession: navigateToSession)
         } detail: {
             if let session = selectedSession {
                 ChatView(session: session)
@@ -22,8 +22,13 @@ struct LoadedRootView: View {
         .sensoryFeedback(.error, trigger: appModel.haptics.errorTrigger)
     }
 
+    private var selectedSession: Session? {
+        guard let selectedSessionID else { return nil }
+        return appModel.sessionStore.sessions.first { $0.id == selectedSessionID }
+    }
+
     private func navigateToSession(_ session: Session) {
         print("[Nav] navigateToSession called for session \(session.id) — '\(session.displayTitle)'")
-        selectedSession = session
+        selectedSessionID = session.id
     }
 }

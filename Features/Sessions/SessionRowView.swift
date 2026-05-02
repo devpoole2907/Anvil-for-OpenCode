@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SessionRowView: View {
     let session: Session
+    let isActive: Bool
+    @Environment(AppModel.self) private var appModel
 
     var body: some View {
         HStack(spacing: Spacing.m) {
@@ -14,8 +16,43 @@ struct SessionRowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: Spacing.s)
+            if let statusLabel {
+                HStack(spacing: 4) {
+                    Image(systemName: statusSymbol)
+                        .font(.caption2.weight(.bold))
+                    Text(statusLabel)
+                        .font(.caption2.weight(.semibold))
+                }
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, Spacing.s)
+                    .padding(.vertical, 4)
+                    .background(statusColor.opacity(0.12))
+                    .clipShape(.capsule)
+            }
         }
         .frame(minHeight: TapTarget.minimum)
         .accessibilityElement(children: .combine)
+    }
+
+    private var isBusy: Bool {
+        appModel.sessionStore.isSessionBusy(session.id)
+    }
+
+    private var statusLabel: String? {
+        if isBusy {
+            return "In Progress"
+        }
+        if isActive {
+            return "Active"
+        }
+        return nil
+    }
+
+    private var statusSymbol: String {
+        isBusy ? "bolt.fill" : "circle.fill"
+    }
+
+    private var statusColor: Color {
+        isBusy ? .orange : .accentColor
     }
 }

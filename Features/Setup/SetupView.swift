@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SetupView: View {
+    @Environment(\.dismiss) private var dismiss
     var onComplete: (ServerProfile) -> Void
 
     @State private var model = SetupModel()
@@ -43,7 +44,14 @@ struct SetupView: View {
                 }
             }
             .navigationTitle("Add Server")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save", action: save)
                         .disabled(!model.canSubmit)

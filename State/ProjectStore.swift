@@ -30,19 +30,32 @@ final class ProjectStore {
     func refreshConfig(directory: String) async {
         do {
             config = try await client.config(directory: directory)
+            let serverNames = config?.mcpServers?.keys.sorted() ?? []
+            print("[ProjectStore] refreshConfig directory=\(directory)")
+            print("[ProjectStore] decoded MCP servers count=\(serverNames.count) names=\(serverNames)")
         } catch {
+            print("[ProjectStore] refreshConfig error for directory=\(directory): \(error)")
             lastError = OpencodeError(error)
         }
     }
 
     func toggleMCP(serverName: String, disabled: Bool, directory: String) async {
         do {
-            try await client.toggleMCP(serverName: serverName, disabled: disabled, directory: directory)
+            print("[ProjectStore] toggleMCP server=\(serverName) disabled=\(disabled) directory=\(directory)")
+            guard var serverConfig = config?.mcpServers?[serverName] else {
+                print("[ProjectStore] toggleMCP missing config for server=\(serverName)")
+                return
+            }
+            serverConfig.enabled = !disabled
+            serverConfig.disabled = disabled
+            try await client.toggleMCP(serverName: serverName, config: serverConfig, directory: directory)
             // Optimistically update local config state
             if config?.mcpServers != nil {
-                config!.mcpServers![serverName]?.disabled = disabled
+                config!.mcpServers![serverName] = serverConfig
             }
+            print("[ProjectStore] toggleMCP updated local config for server=\(serverName)")
         } catch {
+            print("[ProjectStore] toggleMCP error for server=\(serverName): \(error)")
             lastError = OpencodeError(error)
         }
     }

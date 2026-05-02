@@ -19,6 +19,7 @@ final class AppModel {
     var serverHealth: HealthInfo?
     var startupError: OpencodeError?
     var chatStore: ChatStore?
+    var currentChatSessionID: String?
 
     private var eventStreamTask: Task<Void, Never>?
     private var reconnectAttempt: Int = 0
@@ -67,6 +68,7 @@ final class AppModel {
             eventStreamTask?.cancel()
             eventStreamTask = nil
             chatStore = nil
+            currentChatSessionID = nil
             sessionStore.clear()
 
             activeProfile = newProfile
@@ -91,6 +93,8 @@ final class AppModel {
             eventStreamTask?.cancel()
             eventStreamTask = nil
             permissionStore.clear()
+            chatStore = nil
+            currentChatSessionID = nil
             projectStore.setActive(project)
             preferences.setLastActiveProject(project.id, for: activeProfile.id)
         }
@@ -164,6 +168,11 @@ final class AppModel {
     // MARK: - Chat
 
     func openChat(for session: Session) -> ChatStore {
+        currentChatSessionID = session.id
+        if let chatStore, chatStore.sessionID == session.id {
+            print("[AppModel] openChat: reusing existing store for sessionID=\(session.id)")
+            return chatStore
+        }
         print("[AppModel] openChat: sessionID=\(session.id) '\(session.displayTitle)'")
         let store = ChatStore(client: client, sessionID: session.id)
         chatStore = store
@@ -172,6 +181,7 @@ final class AppModel {
 
     func closeChat() {
         chatStore = nil
+        currentChatSessionID = nil
     }
 
     // MARK: - Models

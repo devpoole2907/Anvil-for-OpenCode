@@ -20,6 +20,7 @@ final class ChatStore {
     /// Buffer for deltas that arrive before the corresponding `message.part.updated`.
     private var pendingDeltas: [String: String] = [:]
     private var sendResyncTask: Task<Void, Never>?
+    private var workingResyncTask: Task<Void, Never>?
     private var eventResyncTask: Task<Void, Never>?
     private var activeDirectory: String?
 
@@ -36,6 +37,8 @@ final class ChatStore {
         print("[ChatStore:\(sessionID.prefix(8))] load() start")
         sendResyncTask?.cancel()
         sendResyncTask = nil
+        workingResyncTask?.cancel()
+        workingResyncTask = nil
         eventResyncTask?.cancel()
         eventResyncTask = nil
         activeDirectory = directory
@@ -47,8 +50,19 @@ final class ChatStore {
         }
         do {
             try await syncMessages(directory: directory)
-            // Don't infer working from message state on load — session.status events are authoritative.
+            hasEverSent = messages.contains {
+                if case .user = $0 { return true }
+                return false
+            }
+            let inferredWorking = inferredWorkingState
+            withAnimation {
+                working = inferredWorking
+            }
+            if inferredWorking {
+                startWorkingResyncLoop(directory: directory)
+            }
             print("[ChatStore:\(sessionID.prefix(8))] load() complete: \(messages.count) messages")
+            print("[ChatStore:\(sessionID.prefix(8))] load() inferred working=\(inferredWorking)")
         } catch {
             print("[ChatStore:\(sessionID.prefix(8))] load() error: \(error)")
             lastError = OpencodeError(error)
@@ -57,13 +71,26 @@ final class ChatStore {
 
     // MARK: - Sending
 
-    func send(text: String, directory: String, model: ModelRef?, mode: PromptMode?, effort: PromptEffort?) async {
+    func send(
+        text: String,
+        attachments: [PendingAttachment],
+        directory: String,
+        model: ModelRef?,
+        mode: PromptMode?,
+        effort: PromptEffort?
+    ) async {
         sendResyncTask?.cancel()
         sendResyncTask = nil
+        workingResyncTask?.cancel()
+        workingResyncTask = nil
         eventResyncTask?.cancel()
         eventResyncTask = nil
         activeDirectory = directory
-        let body = PromptBody(parts: [.text(text)], model: model, mode: mode?.rawValue, effort: effort?.rawValue)
+        var promptParts = attachments.map(\.promptPart)
+        if !text.isEmpty {
+            promptParts.append(.text(text))
+        }
+        let body = PromptBody(parts: promptParts, model: model, mode: mode?.rawValue, effort: effort?.rawValue)
         let baselineMessageCount = messages.count
         withAnimation {
             working = true
@@ -107,9 +134,13 @@ final class ChatStore {
                 let shouldBeBusy = status == "busy" && (hasEverSent || !messages.isEmpty)
                 print("[ChatStore:\(sessionID.prefix(8))] session.status=\(status) hasEverSent=\(hasEverSent) messages=\(messages.count) → working=\(shouldBeBusy)")
                 working = shouldBeBusy
-                if !shouldBeBusy {
+                if shouldBeBusy, let activeDirectory {
+                    startWorkingResyncLoop(directory: activeDirectory)
+                } else {
                     sendResyncTask?.cancel()
                     sendResyncTask = nil
+                    workingResyncTask?.cancel()
+                    workingResyncTask = nil
                 }
 
             case .messageUpdated(let message) where message.sessionID == sessionID:
@@ -234,9 +265,17 @@ final class ChatStore {
         }
     }
 
+    private var inferredWorkingState: Bool {
+        guard !messages.isEmpty else { return false }
+        guard case .assistant(let assistant) = messages.last else { return false }
+        return assistant.time.completed == nil && assistant.error == nil
+    }
+
     private func startSendResyncLoop(directory: String, baselineMessageCount: Int) {
         sendResyncTask?.cancel()
         sendResyncTask = nil
+        workingResyncTask?.cancel()
+        workingResyncTask = nil
         sendResyncTask = Task { [weak self] in
             guard let self else { return }
             let capturedDirectory = directory
@@ -258,6 +297,36 @@ final class ChatStore {
                 try? await Task.sleep(for: .milliseconds(delay))
             }
             self.working = false
+        }
+    }
+
+    private func startWorkingResyncLoop(directory: String) {
+        guard workingResyncTask == nil else { return }
+        workingResyncTask = Task { [weak self] in
+            guard let self else { return }
+            let capturedDirectory = directory
+            defer { self.workingResyncTask = nil }
+            for _ in 0..<600 {
+                guard !Task.isCancelled else { return }
+                guard self.activeDirectory == capturedDirectory else { return }
+                do {
+                    try await self.syncMessages(directory: capturedDirectory)
+                    guard self.activeDirectory == capturedDirectory else { return }
+                    let inferredWorking = self.inferredWorkingState
+                    await MainActor.run {
+                        self.working = inferredWorking
+                    }
+                    if !inferredWorking {
+                        return
+                    }
+                } catch {
+                    self.lastError = OpencodeError(error)
+                }
+                try? await Task.sleep(for: .milliseconds(1_000))
+            }
+            await MainActor.run {
+                self.working = false
+            }
         }
     }
 

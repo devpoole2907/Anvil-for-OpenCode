@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class SessionStore {
     var sessions: [Session] = []
+    var busySessionIDs: Set<String> = []
     var loading: Bool = false
     var lastError: OpencodeError?
 
@@ -35,6 +36,7 @@ final class SessionStore {
     func delete(_ session: Session, directory: String) async throws {
         try await client.deleteSession(id: session.id, directory: directory)
         sessions.removeAll { $0.id == session.id }
+        busySessionIDs.remove(session.id)
     }
 
     func rename(_ session: Session, title: String, directory: String) async throws -> Session {
@@ -64,12 +66,24 @@ final class SessionStore {
             sessions.sort()
         case .sessionDeleted(let id):
             sessions.removeAll { $0.id == id }
+            busySessionIDs.remove(id)
+        case .sessionStatus(let id, let status):
+            if status == "busy" {
+                busySessionIDs.insert(id)
+            } else {
+                busySessionIDs.remove(id)
+            }
         default:
             break
         }
     }
 
+    func isSessionBusy(_ sessionID: String) -> Bool {
+        busySessionIDs.contains(sessionID)
+    }
+
     func clear() {
         sessions = []
+        busySessionIDs = []
     }
 }

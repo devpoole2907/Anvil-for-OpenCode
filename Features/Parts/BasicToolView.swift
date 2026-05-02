@@ -25,13 +25,13 @@ struct BasicToolView<Content: View>: View {
         CollapsibleSection(isExpanded: $isExpanded) {
             ToolHeaderView(info: info, state: state)
         } content: {
-            VStack(alignment: .leading, spacing: Spacing.m) {
+            VStack(alignment: .leading, spacing: Spacing.s) {
                 Divider().opacity(0.5)
                 content
             }
         }
-        .padding(.horizontal, Spacing.m)
-        .padding(.vertical, Spacing.s)
+        .padding(.horizontal, Spacing.s)
+        .padding(.vertical, Spacing.xs)
         .background(.regularMaterial)
         .clipShape(.rect(cornerRadius: Radii.medium))
     }

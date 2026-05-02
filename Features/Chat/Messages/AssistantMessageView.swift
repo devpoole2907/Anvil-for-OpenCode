@@ -10,8 +10,13 @@ struct AssistantMessageView: View {
         VStack(alignment: .leading, spacing: Spacing.m) {
             ForEach(grouped, id: \.id) { item in
                 AssistantMessagePartItem(item: item, showReasoning: appModel.preferences.showReasoning)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
             }
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.84), value: grouped)
     }
 
     /// Groups consecutive context tools (read/glob/grep/list) into a single ContextToolGroupView.

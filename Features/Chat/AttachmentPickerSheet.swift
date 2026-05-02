@@ -27,6 +27,12 @@ struct AttachmentPickerSheet: View {
             .navigationTitle("Attachments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done", action: { dismiss() }).bold()
                 }

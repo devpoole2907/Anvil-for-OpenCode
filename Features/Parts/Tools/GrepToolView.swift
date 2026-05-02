@@ -18,6 +18,7 @@ struct GrepToolView: View {
                 Text("^[\(totalResults) result](inflect: true)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                ToolCallDetailsView(part: part)
             }
         }
     }

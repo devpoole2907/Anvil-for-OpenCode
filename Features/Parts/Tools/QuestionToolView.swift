@@ -8,9 +8,12 @@ struct QuestionToolView: View {
         // outside of pending (completed/error) we render a minimal record.
         let info = ToolInfoMap.info(for: part.tool, input: part.state.input)
         BasicToolView(info: info, state: part.state) {
-            if let answer = part.state.output {
-                Text(answer)
-                    .font(.callout)
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                if let answer = part.state.output {
+                    Text(answer)
+                        .font(.callout)
+                }
+                ToolCallDetailsView(part: part)
             }
         }
     }

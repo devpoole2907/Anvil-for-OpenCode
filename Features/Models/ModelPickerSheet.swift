@@ -36,6 +36,12 @@ struct ModelPickerSheet: View {
             .navigationTitle("Choose Model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done", action: { dismiss() }).bold()
                 }
