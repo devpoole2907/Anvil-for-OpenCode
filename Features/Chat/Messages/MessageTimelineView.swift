@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessageTimelineView: View {
     let store: ChatStore
+    var bottomPadding: CGFloat = 0
 
     @State private var scrollTargetID: ScrollTargetID?
 
@@ -38,6 +39,7 @@ struct MessageTimelineView: View {
             .frame(maxWidth: 800)
             .frame(maxWidth: .infinity)
         }
+        .contentMargins(.bottom, max(0, bottomPadding), for: .scrollContent)
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(.bottom, for: .sizeChanges)
         .scrollDismissesKeyboard(.interactively)
@@ -60,7 +62,7 @@ struct MessageTimelineView: View {
                 .buttonStyle(.glass)
                 .tint(.accentColor)
                 .padding(.trailing, Spacing.l)
-                .padding(.bottom, Spacing.l)
+                .padding(.bottom, Spacing.l + max(0, bottomPadding))
                 .accessibilityLabel("Jump to latest message")
             }
         }

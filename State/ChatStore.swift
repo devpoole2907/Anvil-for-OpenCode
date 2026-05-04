@@ -168,6 +168,7 @@ final class ChatStore {
                 parts.removeValue(forKey: mid)
 
             case .messagePartUpdated(let part, let delta) where part.sessionID == sessionID:
+                print("[ChatStore:\(sessionID.prefix(8))] part.updated \(part.id.prefix(8)) textLen=\(part.textLength) delta=\(delta?.count ?? 0)")
                 insertOrReplace(part: part)
                 drainPendingDelta(for: part.id)
                 if delta == nil || !messages.contains(where: { $0.id == part.messageID }) {
@@ -232,7 +233,7 @@ final class ChatStore {
         guard var bucket = parts[delta.messageID],
               let index = bucket.firstIndex(where: { $0.id == delta.partID })
         else {
-            // Buffer until the corresponding part lands.
+            print("[ChatStore:\(sessionID.prefix(8))] delta buffered \(delta.partID.prefix(8))")
             pendingDeltas[delta.partID, default: ""] += delta.delta
             return
         }
@@ -240,6 +241,7 @@ final class ChatStore {
         DeltaApplier.apply(delta: delta, to: &part)
         bucket[index] = part
         parts[delta.messageID] = bucket
+        print("[ChatStore:\(sessionID.prefix(8))] delta +\(delta.delta.count)=\(part.textLength)")
     }
 
     private func drainPendingDelta(for partID: String) {
@@ -264,11 +266,32 @@ final class ChatStore {
     private func syncMessages(directory: String) async throws {
         let envelopes = try await client.messages(sessionID: sessionID, directory: directory)
         messages = envelopes.map(\.info).sorted { $0.time.created < $1.time.created }
+        // Merge server parts with locally accumulated (streamed) parts
+        // to preserve text built up via SSE deltas during streaming.
         var nextParts: [String: [Part]] = [:]
         for envelope in envelopes {
             nextParts[envelope.info.id] = envelope.parts
         }
-        parts = nextParts
+        for (messageID, serverParts) in nextParts {
+            guard var localParts = parts[messageID], !localParts.isEmpty else {
+                parts[messageID] = serverParts
+                continue
+            }
+            for serverPart in serverParts {
+                if let index = localParts.firstIndex(where: { $0.id == serverPart.id }) {
+                    // Prefer whichever has more text (local wins during SSE streaming)
+                    if serverPart.textLength > localParts[index].textLength {
+                        localParts[index] = serverPart
+                    }
+                } else {
+                    localParts.append(serverPart)
+                }
+            }
+            // Remove local parts no longer on the server
+            let serverIDs = Set(serverParts.map(\.id))
+            localParts.removeAll { !serverIDs.contains($0.id) }
+            parts[messageID] = localParts
+        }
         // Remove buffered deltas for parts that now exist in the snapshot to avoid re-applying stale deltas
         let allPartIDs = Set(nextParts.values.flatMap { $0.map(\.id) })
         for partID in allPartIDs {
@@ -306,7 +329,7 @@ final class ChatStore {
                 } catch {
                     self.lastError = OpencodeError(error)
                 }
-                let delay = attempt < 20 ? 500 : 1_000
+                let delay = attempt < 30 ? 150 : 500
                 try? await Task.sleep(for: .milliseconds(delay))
             }
             self.working = false
@@ -337,7 +360,7 @@ final class ChatStore {
                 } catch {
                     self.lastError = OpencodeError(error)
                 }
-                try? await Task.sleep(for: .milliseconds(1_000))
+                try? await Task.sleep(for: .milliseconds(500))
             }
             await MainActor.run {
                 self.working = false

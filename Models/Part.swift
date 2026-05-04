@@ -45,6 +45,14 @@ enum Part: Codable, Identifiable, Hashable, Sendable {
         }
     }
 
+    var textLength: Int {
+        switch self {
+        case .text(let p): p.text.count
+        case .reasoning(let p): p.text.count
+        default: 0
+        }
+    }
+
     var typeString: String {
         switch self {
         case .text: "text"

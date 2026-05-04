@@ -98,7 +98,25 @@ final class AppModel {
             projectStore.setActive(project)
             preferences.setLastActiveProject(project.id, for: activeProfile.id)
         }
-        await loadActiveProject(directory: project.directory)
+        await loadWorkspace(directory: project.directory)
+    }
+
+    /// Set the active project and save preferences synchronously,
+    /// then load sessions/providers/config asynchronously.
+    func activateWorkspace(_ project: Project) {
+        withAnimation {
+            eventStreamTask?.cancel()
+            eventStreamTask = nil
+            permissionStore.clear()
+            chatStore = nil
+            activeChatID = nil
+            projectStore.setActive(project)
+            preferences.setLastActiveProject(project.id, for: activeProfile.id)
+        }
+    }
+
+    func loadWorkspace(directory: String) async {
+        await loadActiveProject(directory: directory)
     }
 
     // MARK: - Private

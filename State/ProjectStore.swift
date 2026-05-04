@@ -60,6 +60,13 @@ final class ProjectStore {
         }
     }
 
+    func addProject(directory: String) -> Project {
+        let id = directory.replacingOccurrences(of: "/", with: "-")
+        let project = Project(id: id, worktree: directory, name: nil, time: TimeRange(created: Date.now.timeIntervalSince1970, updated: Date.now.timeIntervalSince1970))
+        projects = [project] + projects
+        return project
+    }
+
     func setActive(_ project: Project?) {
         active = project
     }

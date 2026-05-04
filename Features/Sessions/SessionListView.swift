@@ -147,6 +147,8 @@ struct SessionListView: View {
 
 private struct WorkspaceTitleMenu: View {
     @Environment(AppModel.self) private var appModel
+    @State private var showNewWorkspaceAlert = false
+    @State private var newWorkspacePath = ""
 
     var body: some View {
         Menu {
@@ -161,6 +163,10 @@ private struct WorkspaceTitleMenu: View {
             }
             if appModel.projectStore.projects.isEmpty {
                 Text("No workspaces available")
+            }
+            Divider()
+            Button(action: { showNewWorkspaceAlert = true }) {
+                Label("New Workspace...", systemImage: "plus")
             }
         } label: {
             VStack(spacing: 1) {
@@ -180,6 +186,15 @@ private struct WorkspaceTitleMenu: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
+        .alert("New Workspace", isPresented: $showNewWorkspaceAlert) {
+            TextField("/absolute/path/on/server", text: $newWorkspacePath)
+            Button("Create", action: createWorkspace)
+            Button("Cancel", role: .cancel) {
+                newWorkspacePath = ""
+            }
+        } message: {
+            Text("Enter the absolute path on the Mac running opencode (e.g. /Users/jamespoole/Documents/Project).")
+        }
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -198,6 +213,18 @@ private struct WorkspaceTitleMenu: View {
     private func select(_ project: Project) {
         Task {
             await appModel.setActiveProject(project)
+        }
+    }
+
+    private func createWorkspace() {
+        let path = newWorkspacePath.trimmingCharacters(in: .whitespaces)
+        newWorkspacePath = ""
+        guard !path.isEmpty else { return }
+        let project = appModel.projectStore.addProject(directory: path)
+        appModel.activateWorkspace(project)
+        Task {
+            await appModel.loadWorkspace(directory: path)
+            appModel.haptics.success()
         }
     }
 }

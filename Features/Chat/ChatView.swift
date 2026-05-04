@@ -270,6 +270,7 @@ private struct ChatContent: View {
     var onInterrupt: () -> Void
 
     @Environment(AppModel.self) private var appModel
+    @State private var composerHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -281,21 +282,27 @@ private struct ChatContent: View {
             }
             TodoDockView()
 
-            if let store {
-                MessageTimelineView(store: store)
-                    .frame(maxHeight: .infinity)
-                    .transition(.opacity)
-            } else {
-                ProgressView()
-                    .frame(maxHeight: .infinity)
-                    .transition(.opacity)
-            }
+            ZStack(alignment: .bottom) {
+                if let store {
+                    MessageTimelineView(store: store, bottomPadding: composerHeight)
+                        .transition(.opacity)
+                } else {
+                    ProgressView()
+                        .frame(maxHeight: .infinity)
+                        .transition(.opacity)
+                }
 
-            ChatComposer(
-                isWorking: store?.working ?? false,
-                onSend: onSend,
-                onInterrupt: onInterrupt
-            )
+                ChatComposer(
+                    isWorking: store?.working ?? false,
+                    onSend: onSend,
+                    onInterrupt: onInterrupt
+                )
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.height
+                } action: { height in
+                    composerHeight = height
+                }
+            }
         }
     }
 }

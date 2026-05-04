@@ -66,6 +66,14 @@ struct SettingsView: View {
                     .foregroundStyle(.primary)
                     .accessibilityHint("Choose the model used for new prompts")
 
+                    if let ref = appModel.selectedModel,
+                       let model = appModel.providerStore.model(matching: ref) {
+                        LabeledContent("Usage") {
+                            Text(modelUsage(for: model))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Toggle("Show reasoning summaries", isOn: $prefs.showReasoning)
                 }
 
@@ -110,6 +118,18 @@ struct SettingsView: View {
         } else {
             return "\(model.displayName) (\(tags.sorted().joined(separator: ", ")))"
         }
+    }
+
+    private func modelUsage(for model: ModelInfo) -> String {
+        guard let cost = model.cost,
+              let input = cost.input,
+              let output = cost.output
+        else { return "—" }
+        let total = input + output
+        let inputPct = total > 0 ? Int((input / total) * 100) : 0
+        let i = input.formatted(.number.precision(.fractionLength(0...2)))
+        let o = output.formatted(.number.precision(.fractionLength(0...2)))
+        return "$\(i) / $\(o) per 1M (\(inputPct)% input)"
     }
 
     private var appVersion: String {
