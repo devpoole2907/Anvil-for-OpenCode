@@ -25,33 +25,35 @@ struct SettingsView: View {
 
                 Section("Defaults") {
                     Menu {
-                        ForEach(appModel.providerStore.providers) { provider in
-                            Menu(provider.name) {
-                                ForEach(provider.models) { model in
-                                    Button {
-                                        let ref = ModelRef(providerID: provider.id, modelID: model.id)
-                                        withAnimation {
-                                            appModel.preferences.setDefaultModel(ref, for: appModel.activeProfile.id)
-                                        }
-                                        appModel.haptics.selection()
-                                    } label: {
-                                        HStack {
-                                            if appModel.isModelActive(provider: provider, model: model) {
-                                                Image(systemName: "checkmark")
+                        let noModels = appModel.providerStore.providers.isEmpty || appModel.providerStore.providers.allSatisfy { $0.models.isEmpty }
+                        if noModels {
+                            Text("No models available")
+                        } else {
+                            ForEach(appModel.providerStore.providers) { provider in
+                                Menu(provider.name) {
+                                    ForEach(provider.models) { model in
+                                        Button {
+                                            let ref = ModelRef(providerID: provider.id, modelID: model.id)
+                                            withAnimation {
+                                                appModel.preferences.setDefaultModel(ref, for: appModel.activeProfile.id)
                                             }
-                                            Text(model.displayName)
-                                            let tags = provider.modelTags[model.id] ?? []
-                                            if !tags.isEmpty {
-                                                Text("(\(tags.sorted().joined(separator: ", ")))")
-                                                    .foregroundStyle(.secondary)
+                                            appModel.haptics.selection()
+                                        } label: {
+                                            HStack {
+                                                if appModel.isModelActive(provider: provider, model: model) {
+                                                    Image(systemName: "checkmark")
+                                                }
+                                                Text(model.displayName)
+                                                let tags = provider.modelTags[model.id] ?? []
+                                                if !tags.isEmpty {
+                                                    Text("(\(tags.sorted().joined(separator: ", ")))")
+                                                        .foregroundStyle(.secondary)
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        if appModel.providerStore.providers.isEmpty {
-                            Text("No models available")
                         }
                     } label: {
                         LabeledContent("Default Model") {

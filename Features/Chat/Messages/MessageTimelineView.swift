@@ -69,7 +69,7 @@ struct MessageTimelineView: View {
     }
 
     private var showsThinkingIndicator: Bool {
-        store.working && store.turns.last?.assistantParts.isEmpty == true
+        store.working && (store.turns.isEmpty || store.turns.last?.assistantParts.isEmpty == true)
     }
 
     private var bottomTargetID: ScrollTargetID? {

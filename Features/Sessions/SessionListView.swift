@@ -218,8 +218,23 @@ private struct WorkspaceTitleMenu: View {
 
     private func createWorkspace() {
         let path = newWorkspacePath.trimmingCharacters(in: .whitespaces)
-        newWorkspacePath = ""
         guard !path.isEmpty else { return }
+
+        // Validate path is absolute and exists
+        let url = URL(fileURLWithPath: path)
+        guard url.path.hasPrefix("/") else {
+            appModel.haptics.error()
+            return
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            appModel.haptics.error()
+            return
+        }
+
+        newWorkspacePath = ""
         let project = appModel.projectStore.addProject(directory: path)
         appModel.activateWorkspace(project)
         Task {

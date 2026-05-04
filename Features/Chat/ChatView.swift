@@ -8,6 +8,8 @@ struct ChatView: View {
     @State private var showPermissionSheet: Bool = false
     @State private var showRenameAlert: Bool = false
     @State private var renameText: String = ""
+    @State private var showErrorAlert: Bool = false
+    @State private var errorMessage: String = ""
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
@@ -35,6 +37,11 @@ struct ChatView: View {
             TextField("Name", text: $renameText)
             Button("Save", action: rename)
             Button("Cancel", role: .cancel) {}
+        }
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
         }
         .task(load)
         .onDisappear {
@@ -179,6 +186,9 @@ struct ChatView: View {
                 _ = try await appModel.sessionStore.rename(currentSession, title: trimmed, directory: directory)
             } catch {
                 print("[ChatView] rename error: \(error)")
+                errorMessage = error.localizedDescription
+                showErrorAlert = true
+                appModel.haptics.error()
             }
         }
     }
@@ -194,6 +204,8 @@ struct ChatView: View {
                 }
             } catch {
                 print("[ChatView] share error: \(error)")
+                errorMessage = error.localizedDescription
+                showErrorAlert = true
                 appModel.haptics.error()
             }
         }

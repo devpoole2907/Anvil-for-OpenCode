@@ -62,7 +62,8 @@ final class ProjectStore {
 
     func addProject(directory: String) -> Project {
         let id = directory.replacingOccurrences(of: "/", with: "-")
-        let project = Project(id: id, worktree: directory, name: nil, time: TimeRange(created: Date.now.timeIntervalSince1970, updated: Date.now.timeIntervalSince1970))
+        let now = Date.now.timeIntervalSince1970 * 1000
+        let project = Project(id: id, worktree: directory, name: nil, time: TimeRange(created: now, updated: now))
         projects = [project] + projects
         return project
     }

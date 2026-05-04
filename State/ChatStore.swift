@@ -279,8 +279,16 @@ final class ChatStore {
             }
             for serverPart in serverParts {
                 if let index = localParts.firstIndex(where: { $0.id == serverPart.id }) {
-                    // Prefer whichever has more text (local wins during SSE streaming)
-                    if serverPart.textLength > localParts[index].textLength {
+                    let localPart = localParts[index]
+                    // Keep local part only if it's text/reasoning with more content
+                    let shouldKeepLocal: Bool
+                    switch localPart {
+                    case .text, .reasoning:
+                        shouldKeepLocal = localPart.textLength > serverPart.textLength
+                    default:
+                        shouldKeepLocal = false
+                    }
+                    if !shouldKeepLocal {
                         localParts[index] = serverPart
                     }
                 } else {
