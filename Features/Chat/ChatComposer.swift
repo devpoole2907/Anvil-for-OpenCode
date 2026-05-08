@@ -109,17 +109,6 @@ struct ChatComposer: View {
         .glassEffect(in: .rect(cornerRadius: Radii.large, style: .continuous))
         .padding(.horizontal, Spacing.m)
         .padding(.bottom, Spacing.s)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 20, coordinateSpace: .local)
-                .onChanged { value in
-                    // Only dismiss if the swipe is significantly downward and mostly vertical.
-                    // This avoids interfering with horizontal text selection and minor cursor adjustments.
-                    let isVertical = value.translation.height > abs(value.translation.width) * 1.5
-                    if isVertical && value.translation.height > 35 && isFocused {
-                        isFocused = false
-                    }
-                }
-        )
     }
 
     // MARK: - Mode row

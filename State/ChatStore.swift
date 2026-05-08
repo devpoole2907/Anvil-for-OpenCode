@@ -136,54 +136,52 @@ final class ChatStore {
     // MARK: - Event application
 
     func apply(_ event: ServerEvent) {
-        withAnimation(.spring(duration: 0.3)) {
-            switch event {
-            case .sessionStatus(let sid, let status) where sid == sessionID:
-                // Only apply "busy" if we've sent a message or already have messages; prevents
-                // false working state when a new empty session receives a stale "busy" event.
-                let shouldBeBusy = status == "busy" && (hasEverSent || !messages.isEmpty)
-                print("[ChatStore:\(sessionID.prefix(8))] session.status=\(status) hasEverSent=\(hasEverSent) messages=\(messages.count) → working=\(shouldBeBusy)")
+        switch event {
+        case .sessionStatus(let sid, let status) where sid == sessionID:
+            let shouldBeBusy = status == "busy" && (hasEverSent || !messages.isEmpty)
+            print("[ChatStore:\(sessionID.prefix(8))] session.status=\(status) hasEverSent=\(hasEverSent) messages=\(messages.count) → working=\(shouldBeBusy)")
+            withAnimation {
                 working = shouldBeBusy
-                setSessionBusy(sessionID, shouldBeBusy)
-                if shouldBeBusy, let activeDirectory {
-                    startWorkingResyncLoop(directory: activeDirectory)
-                } else {
-                    sendResyncTask?.cancel()
-                    sendResyncTask = nil
-                    workingResyncTask?.cancel()
-                    workingResyncTask = nil
-                }
-
-            case .messageUpdated(let message) where message.sessionID == sessionID:
-                if let index = messages.firstIndex(where: { $0.id == message.id }) {
-                    messages[index] = message
-                } else {
-                    messages.append(message)
-                }
-                messages.sort { $0.time.created < $1.time.created }
-                scheduleEventResync()
-
-            case .messageRemoved(let sid, let mid) where sid == sessionID:
-                messages.removeAll { $0.id == mid }
-                parts.removeValue(forKey: mid)
-
-            case .messagePartUpdated(let part, let delta) where part.sessionID == sessionID:
-                print("[ChatStore:\(sessionID.prefix(8))] part.updated \(part.id.prefix(8)) textLen=\(part.textLength) delta=\(delta?.count ?? 0)")
-                insertOrReplace(part: part)
-                drainPendingDelta(for: part.id)
-                if delta == nil || !messages.contains(where: { $0.id == part.messageID }) {
-                    scheduleEventResync()
-                }
-
-            case .messagePartDelta(let delta) where delta.sessionID == sessionID:
-                applyDelta(delta)
-
-            case .messagePartRemoved(let sid, let mid, let pid) where sid == sessionID:
-                parts[mid]?.removeAll { $0.id == pid }
-
-            default:
-                break
             }
+            setSessionBusy(sessionID, shouldBeBusy)
+            if shouldBeBusy, let activeDirectory {
+                startWorkingResyncLoop(directory: activeDirectory)
+            } else {
+                sendResyncTask?.cancel()
+                sendResyncTask = nil
+                workingResyncTask?.cancel()
+                workingResyncTask = nil
+            }
+
+        case .messageUpdated(let message) where message.sessionID == sessionID:
+            if let index = messages.firstIndex(where: { $0.id == message.id }) {
+                messages[index] = message
+            } else {
+                messages.append(message)
+            }
+            messages.sort { $0.time.created < $1.time.created }
+            scheduleEventResync()
+
+        case .messageRemoved(let sid, let mid) where sid == sessionID:
+            messages.removeAll { $0.id == mid }
+            parts.removeValue(forKey: mid)
+
+        case .messagePartUpdated(let part, let delta) where part.sessionID == sessionID:
+            print("[ChatStore:\(sessionID.prefix(8))] part.updated \(part.id.prefix(8)) textLen=\(part.textLength) delta=\(delta?.count ?? 0)")
+            insertOrReplace(part: part)
+            drainPendingDelta(for: part.id)
+            if delta == nil || !messages.contains(where: { $0.id == part.messageID }) {
+                scheduleEventResync()
+            }
+
+        case .messagePartDelta(let delta) where delta.sessionID == sessionID:
+            applyDelta(delta)
+
+        case .messagePartRemoved(let sid, let mid, let pid) where sid == sessionID:
+            parts[mid]?.removeAll { $0.id == pid }
+
+        default:
+            break
         }
     }
 
