@@ -15,22 +15,23 @@ private struct WriteToolBody: View {
     let part: ToolPart
 
     var body: some View {
-        if let diff = extractedDiff {
-            DiffView(diff: diff)
-        } else if let errorMessage = part.state.errorMessage {
-            Label(errorMessage, systemImage: "xmark.octagon")
-                .foregroundStyle(.red)
-        } else if let preview {
-            ScrollView {
-                Text(preview)
-                    .font(.caption.monospaced())
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            if let diff = extractedDiff {
+                DiffView(diff: diff)
+            } else if let errorMessage = part.state.errorMessage {
+                Label(errorMessage, systemImage: "xmark.octagon")
+                    .foregroundStyle(.red)
+            } else if let preview {
+                ScrollView {
+                    Text(preview)
+                        .font(.caption.monospaced())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: 240)
             }
-            .scrollIndicators(.hidden)
-            .frame(maxHeight: 240)
-        } else {
-            EmptyView()
+            ToolCallDetailsView(part: part)
         }
     }
 

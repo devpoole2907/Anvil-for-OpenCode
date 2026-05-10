@@ -41,8 +41,47 @@ enum EventStream {
         directory: String,
         continuation: AsyncThrowingStream<ServerEvent, Error>.Continuation
     ) async throws {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = .infinity
+        let session = URLSession(configuration: config)
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for path in ["/event", "/global/event"] {
+                group.addTask {
+                    do {
+                        let request = try makeRequest(
+                            baseURL: baseURL,
+                            path: path,
+                            username: username,
+                            password: password,
+                            directory: directory
+                        )
+                        try await consume(request: request, path: path, session: session, continuation: continuation)
+                    } catch OpencodeError.notFound {
+                        log.debug("SSE endpoint not found: \(path, privacy: .public)")
+                    } catch OpencodeError.unauthenticated {
+                        throw OpencodeError.unauthenticated
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        log.debug("SSE endpoint ended: \(path, privacy: .public) \(String(describing: error), privacy: .public)")
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+    }
+
+    private static func makeRequest(
+        baseURL: URL,
+        path: String,
+        username: String,
+        password: String,
+        directory: String
+    ) throws -> URLRequest {
         guard var components = URLComponents(
-            url: baseURL.appending(path: "/global/event"),
+            url: baseURL.appending(path: path),
             resolvingAgainstBaseURL: false
         ) else {
             throw OpencodeError.invalidURL
@@ -57,21 +96,28 @@ enum EventStream {
         if let auth = BasicAuth.header(username: username, password: password) {
             request.setValue(auth, forHTTPHeaderField: "Authorization")
         }
+        return request
+    }
 
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = .infinity
-        let session = URLSession(configuration: config)
-
+    private static func consume(
+        request: URLRequest,
+        path: String,
+        session: URLSession,
+        continuation: AsyncThrowingStream<ServerEvent, Error>.Continuation
+    ) async throws {
         let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw OpencodeError.invalidResponse
         }
         switch http.statusCode {
-        case 200..<300: break
-        case 401, 403: throw OpencodeError.unauthenticated
-        case 404: throw OpencodeError.notFound
-        default: throw OpencodeError.httpStatus(http.statusCode, nil)
+        case 200..<300:
+            log.debug("SSE connected: \(path, privacy: .public)")
+        case 401, 403:
+            throw OpencodeError.unauthenticated
+        case 404:
+            throw OpencodeError.notFound
+        default:
+            throw OpencodeError.httpStatus(http.statusCode, nil)
         }
 
         // Helper: SSE line accumulation. Tightly coupled — kept inline per spec.

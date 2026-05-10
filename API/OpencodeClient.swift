@@ -52,7 +52,33 @@ actor OpencodeClient {
     // MARK: - Config & Providers
 
     func config(directory: String) async throws -> ConfigInfo {
-        try await get("/config", directory: directory)
+        let data = try await performRequest(method: .get, path: "/config", directory: directory, body: Optional<EmptyBody>.none)
+        if let body = String(data: data, encoding: .utf8) {
+            print("[OpencodeClient] /config raw response for directory=\(directory): \(body)")
+        } else {
+            print("[OpencodeClient] /config raw response for directory=\(directory): <non-UTF8 \(data.count) bytes>")
+        }
+        do {
+            let decoded = try decoder.decode(ConfigInfo.self, from: data)
+            let names = decoded.mcpServers?.keys.sorted() ?? []
+            print("[OpencodeClient] /config decoded MCP servers: \(names)")
+            return decoded
+        } catch {
+            print("[OpencodeClient] /config decode error: \(error)")
+            throw OpencodeError.decoding(String(describing: error))
+        }
+    }
+
+    func toggleMCP(serverName: String, config: MCPConfig, directory: String) async throws {
+        struct MCPPatch: Encodable {
+            let mcp: [String: MCPConfig]
+        }
+        let body = MCPPatch(mcp: [serverName: config])
+        if let data = try? encoder.encode(body),
+           let rawBody = String(data: data, encoding: .utf8) {
+            print("[OpencodeClient] toggleMCP request body for server=\(serverName): \(rawBody)")
+        }
+        try await sendVoid(.patch, "/config", directory: directory, body: body)
     }
 
     func providers(directory: String) async throws -> ProviderListResponse {
@@ -77,6 +103,10 @@ actor OpencodeClient {
     func updateSessionTitle(id: String, directory: String, title: String) async throws -> Session {
         struct Body: Encodable { let title: String }
         return try await send(.patch, "/session/\(id)", directory: directory, body: Body(title: title))
+    }
+
+    func shareSession(id: String, directory: String) async throws -> Session {
+        return try await send(.post, "/session/\(id)/share", directory: directory, body: Optional<EmptyBody>.none)
     }
 
     func deleteSession(id: String, directory: String) async throws {

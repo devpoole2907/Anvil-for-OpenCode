@@ -7,17 +7,65 @@ enum ToolInfoMap {
         let subtitle: String?
     }
 
+    private static func extractPath(from dict: [String: Any]) -> String? {
+        let stringKeys = ["path", "file", "file_path", "filepath", "absolute_path", "absolutePath", "relative_path", "relativePath", "target"]
+        for key in stringKeys {
+            if let str = dict[key] as? String {
+                return str
+            }
+        }
+        
+        let arrayKeys = ["paths", "files", "filepaths", "filePaths", "absolute_paths", "relative_paths"]
+        for key in arrayKeys {
+            if let array = dict[key] as? [Any], let first = array.first as? String {
+                if array.count > 1 {
+                    return "\(first) (+\(array.count - 1) more)"
+                }
+                return first
+            }
+        }
+        return nil
+    }
+
+    private static func filename(from path: String?) -> String? {
+        guard let path = path, !path.isEmpty else { return nil }
+        // Strip trailing annotation like " (+N more)"
+        let pathWithoutAnnotation: String
+        if let annotationIndex = path.range(of: " (+")?.lowerBound {
+            // Verify it matches the pattern " (+<digits> more)"
+            let suffix = String(path[annotationIndex...])
+            let pattern = #"^ \(\+\d+ more\)$"#
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               regex.firstMatch(in: suffix, range: NSRange(suffix.startIndex..., in: suffix)) != nil {
+                pathWithoutAnnotation = String(path[..<annotationIndex])
+            } else {
+                pathWithoutAnnotation = path
+            }
+        } else {
+            pathWithoutAnnotation = path
+        }
+        // Extract the last path component using URL
+        let component = URL(fileURLWithPath: pathWithoutAnnotation).lastPathComponent
+        return component.isEmpty ? nil : component
+    }
+
     static func info(for tool: String, input: AnyCodable?) -> Info {
         let dict = input?.dictionaryValue ?? [:]
         switch tool {
         case "bash":
             return Info(icon: "terminal", title: "Run command", subtitle: dict["command"] as? String)
         case "edit":
-            return Info(icon: "pencil", title: "Edit", subtitle: dict["path"] as? String)
+            let path = extractPath(from: dict)
+            let name = filename(from: path)
+            return Info(icon: "pencil", title: name != nil ? "Edit \(name!)" : "Edit", subtitle: path)
         case "write":
-            return Info(icon: "square.and.pencil", title: "Write", subtitle: dict["path"] as? String)
+            let path = extractPath(from: dict)
+            let name = filename(from: path)
+            return Info(icon: "square.and.pencil", title: name != nil ? "Write \(name!)" : "Write", subtitle: path)
         case "read":
-            return Info(icon: "doc.text", title: "Read", subtitle: dict["path"] as? String)
+            let path = extractPath(from: dict)
+            let name = filename(from: path)
+            return Info(icon: "doc.text", title: name != nil ? "Read \(name!)" : "Read", subtitle: path)
         case "glob":
             return Info(icon: "doc.text.magnifyingglass", title: "Glob", subtitle: dict["pattern"] as? String)
         case "grep":

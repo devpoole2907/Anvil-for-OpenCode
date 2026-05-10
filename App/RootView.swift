@@ -23,12 +23,16 @@ struct RootView: View {
     private func loadInitial() async {
         let profiles = (try? profileStore.loadAll()) ?? []
         guard let profile = resolveActive(among: profiles) else {
-            showSetup = true
+            withAnimation {
+                showSetup = true
+            }
             return
         }
         let model = AppModel(profile: profile, preferences: preferences, profileStore: profileStore)
         await model.start()
-        appModel = model
+        withAnimation {
+            appModel = model
+        }
     }
 
     private func resolveActive(among profiles: [ServerProfile]) -> ServerProfile? {
@@ -45,8 +49,10 @@ struct RootView: View {
             let model = AppModel(profile: profile, preferences: preferences, profileStore: profileStore)
             Task {
                 await model.start()
-                appModel = model
-                showSetup = false
+                withAnimation {
+                    appModel = model
+                    showSetup = false
+                }
             }
         } catch {
             // SetupView surfaces its own errors; here we silently leave the user on the form.

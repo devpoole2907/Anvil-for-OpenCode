@@ -4,7 +4,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var appModel
     @State private var showProfilePicker: Bool = false
-    @State private var showModelPicker: Bool = false
 
     var body: some View {
         @Bindable var prefs = appModel.preferences
@@ -25,8 +24,58 @@ struct SettingsView: View {
                 }
 
                 Section("Defaults") {
-                    Button("Default Model", action: { showModelPicker = true })
-                        .accessibilityHint("Choose the model used for new prompts")
+                    Menu {
+                        let noModels = appModel.providerStore.providers.isEmpty || appModel.providerStore.providers.allSatisfy { $0.models.isEmpty }
+                        if noModels {
+                            Text("No models available")
+                        } else {
+                            ForEach(appModel.providerStore.providers) { provider in
+                                Menu(provider.name) {
+                                    ForEach(provider.models) { model in
+                                        Button {
+                                            let ref = ModelRef(providerID: provider.id, modelID: model.id)
+                                            withAnimation {
+                                                appModel.preferences.setDefaultModel(ref, for: appModel.activeProfile.id)
+                                            }
+                                            appModel.haptics.selection()
+                                        } label: {
+                                            HStack {
+                                                if appModel.isModelActive(provider: provider, model: model) {
+                                                    Image(systemName: "checkmark")
+                                                }
+                                                Text(model.displayName)
+                                                let tags = provider.modelTags[model.id] ?? []
+                                                if !tags.isEmpty {
+                                                    Text("(\(tags.sorted().joined(separator: ", ")))")
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        LabeledContent("Default Model") {
+                            HStack(spacing: 4) {
+                                Text(selectedModelNameWithTags)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .accessibilityHint("Choose the model used for new prompts")
+
+                    if let ref = appModel.selectedModel,
+                       let model = appModel.providerStore.model(matching: ref) {
+                        LabeledContent("Usage") {
+                            Text(modelUsage(for: model))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Toggle("Show reasoning summaries", isOn: $prefs.showReasoning)
                 }
 
@@ -44,6 +93,12 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done", action: { dismiss() }).bold()
                 }
@@ -51,10 +106,32 @@ struct SettingsView: View {
             .sheet(isPresented: $showProfilePicker) {
                 ServerProfilePickerSheet()
             }
-            .sheet(isPresented: $showModelPicker) {
-                ModelPickerSheet()
-            }
         }
+    }
+
+    private var selectedModelNameWithTags: String {
+        guard let ref = appModel.selectedModel,
+              let model = appModel.providerStore.model(matching: ref) else {
+            return "No Model"
+        }
+        let tags = appModel.tagsForModel(providerID: ref.providerID, modelID: ref.modelID)
+        if tags.isEmpty {
+            return model.displayName
+        } else {
+            return "\(model.displayName) (\(tags.sorted().joined(separator: ", ")))"
+        }
+    }
+
+    private func modelUsage(for model: ModelInfo) -> String {
+        guard let cost = model.cost,
+              let input = cost.input,
+              let output = cost.output
+        else { return "—" }
+        let total = input + output
+        let inputPct = total > 0 ? Int((input / total) * 100) : 0
+        let i = input.formatted(.number.precision(.fractionLength(0...2)))
+        let o = output.formatted(.number.precision(.fractionLength(0...2)))
+        return "$\(i) / $\(o) per 1M (\(inputPct)% input)"
     }
 
     private var appVersion: String {

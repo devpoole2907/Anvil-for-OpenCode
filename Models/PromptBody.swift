@@ -3,6 +3,8 @@ import Foundation
 struct PromptBody: Encodable, Sendable {
     let parts: [PromptPart]
     var model: ModelRef?
+    var mode: String?
+    var effort: String?
     var agent: String?
     var system: String?
 }

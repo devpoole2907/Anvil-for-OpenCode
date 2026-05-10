@@ -40,7 +40,10 @@ struct ProfileEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", role: .cancel, action: { dismiss() })
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save", action: save)

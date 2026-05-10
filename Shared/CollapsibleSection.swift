@@ -16,16 +16,16 @@ struct CollapsibleSection<Header: View, Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
+        VStack(alignment: .leading, spacing: 0) {
             Button(action: toggle) {
                 HStack(spacing: Spacing.s) {
                     header
-                    Spacer(minLength: Spacing.s)
                     Image(systemName: "chevron.right")
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
+                .padding(.trailing, Spacing.xs)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
@@ -34,13 +34,16 @@ struct CollapsibleSection<Header: View, Content: View>: View {
 
             if isExpanded {
                 content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .padding(.top, Spacing.xs)
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut, value: isExpanded)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
     }
 
     private func toggle() {
-        isExpanded.toggle()
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            isExpanded.toggle()
+        }
     }
 }

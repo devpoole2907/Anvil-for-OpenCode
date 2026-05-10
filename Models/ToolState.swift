@@ -48,7 +48,7 @@ enum ToolState: Codable, Hashable, Sendable {
 
     var input: AnyCodable? {
         switch self {
-        case .pending: nil
+        case .pending(let s): s.input
         case .running(let s): s.input
         case .completed(let s): s.input
         case .error(let s): s.input
@@ -89,6 +89,7 @@ enum ToolState: Codable, Hashable, Sendable {
 
 struct ToolStatePending: Codable, Hashable, Sendable {
     let status: String
+    var input: AnyCodable?
 }
 
 struct ToolStateRunning: Codable, Hashable, Sendable {

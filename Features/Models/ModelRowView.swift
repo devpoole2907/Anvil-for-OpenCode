@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ModelRowView: View {
     let model: ModelInfo
+    var displayName: String? = nil
     let isSelected: Bool
     var onSelect: () -> Void
 
@@ -9,7 +10,7 @@ struct ModelRowView: View {
         Button(action: onSelect) {
             HStack(spacing: Spacing.s) {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(model.displayName).bold()
+                    Text(displayName ?? model.displayName).bold()
                     if let detail = subtitleText {
                         Text(detail)
                             .font(.caption)

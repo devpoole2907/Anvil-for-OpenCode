@@ -30,6 +30,7 @@ struct BashToolView: View {
                     Label(errorMessage, systemImage: "xmark.octagon")
                         .foregroundStyle(.red)
                 }
+                ToolCallDetailsView(part: part)
             }
         }
     }

@@ -21,8 +21,11 @@ struct ModelPickerSheet: View {
                 ForEach(appModel.providerStore.providers) { provider in
                     DisclosureGroup(provider.name) {
                         ForEach(provider.models) { model in
+                            let tags = provider.modelTags[model.id] ?? []
+                            let displayName = tags.isEmpty ? model.displayName : "\(model.displayName) (\(tags.sorted().joined(separator: ", ")))"
                             ModelRowView(
                                 model: model,
+                                displayName: displayName,
                                 isSelected: isSelected(provider: provider, model: model),
                                 onSelect: { select(provider: provider, model: model) }
                             )
@@ -33,6 +36,12 @@ struct ModelPickerSheet: View {
             .navigationTitle("Choose Model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done", action: { dismiss() }).bold()
                 }

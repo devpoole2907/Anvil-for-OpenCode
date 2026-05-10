@@ -10,6 +10,10 @@ struct AssistantMessageView: View {
         VStack(alignment: .leading, spacing: Spacing.m) {
             ForEach(grouped, id: \.id) { item in
                 AssistantMessagePartItem(item: item, showReasoning: appModel.preferences.showReasoning)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
             }
         }
     }
@@ -44,7 +48,7 @@ enum GroupedItem: Identifiable, Hashable {
     var id: String {
         switch self {
         case .single(let part): part.id
-        case .contextGroup(let parts): "ctx-\(parts.map(\.id).joined(separator: "-"))"
+        case .contextGroup(let parts): "ctx-\(parts.first?.id ?? "empty")"
         }
     }
 }

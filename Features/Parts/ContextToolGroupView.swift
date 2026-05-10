@@ -11,7 +11,7 @@ struct ContextToolGroupView: View {
             subtitle: subtitleText
         )
         BasicToolView(info: info, state: aggregateState, defaultOpen: false) {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+            VStack(alignment: .leading, spacing: Spacing.s) {
                 ForEach(parts) { part in
                     ContextToolGroupRow(part: part)
                 }
