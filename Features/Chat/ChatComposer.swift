@@ -20,7 +20,7 @@ struct ChatComposer: View {
     @State private var showFileImporter: Bool = false
     @State private var showCameraCapture: Bool = false
     @State private var attachmentError: String?
-    @FocusState private var isFocused: Bool
+    @State private var isFocused: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -232,10 +232,24 @@ struct ChatComposer: View {
 
     private var inputRow: some View {
         HStack(alignment: .bottom, spacing: Spacing.s) {
-            TextField(placeholder, text: $text, axis: .vertical)
-                .lineLimit(1...8)
-                .focused($isFocused)
-                .disabled(isWorking)
+            ZStack(alignment: .topLeading) {
+                // Invisible text dictates intrinsic height (up to 8 lines)
+                Text(text.isEmpty ? " " : text)
+                    .lineLimit(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .opacity(0)
+                    .layoutPriority(1)
+
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundStyle(.tertiary)
+                        .allowsHitTesting(false)
+                }
+
+                NativeTextView(text: $text, isFocused: $isFocused)
+                    .disabled(isWorking)
+            }
+            .padding(.top, 6)
 
             HStack(spacing: Spacing.s) {
                 Button("Attach", systemImage: "paperclip", action: { showAttachmentOptions = true })
