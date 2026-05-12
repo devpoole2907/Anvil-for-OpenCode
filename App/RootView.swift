@@ -29,10 +29,10 @@ struct RootView: View {
             return
         }
         let model = AppModel(profile: profile, preferences: preferences, profileStore: profileStore)
-        await model.start()
         withAnimation {
             appModel = model
         }
+        await model.start()
     }
 
     private func resolveActive(among profiles: [ServerProfile]) -> ServerProfile? {

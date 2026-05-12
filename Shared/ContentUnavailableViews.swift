@@ -35,14 +35,20 @@ enum ContentUnavailableViews {
     }
 
     @MainActor @ViewBuilder
-    static func connectionError(_ error: OpencodeError, retry: @escaping () -> Void) -> some View {
+    static func connectionError(_ error: OpencodeError, retry: @escaping () -> Void, onEditServer: (() -> Void)? = nil) -> some View {
         ContentUnavailableView {
             Label("Can't reach the server", systemImage: "wifi.exclamationmark")
         } description: {
             Text(error.errorDescription ?? "Unknown error.")
         } actions: {
-            Button("Try Again", action: retry)
-                .buttonStyle(.borderedProminent)
+            VStack(spacing: 8) {
+                Button("Try Again", action: retry)
+                    .buttonStyle(.borderedProminent)
+
+                if let onEditServer {
+                    Button("Edit Server", action: onEditServer)
+                }
+            }
         }
     }
 }

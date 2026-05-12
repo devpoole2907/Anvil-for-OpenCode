@@ -7,13 +7,16 @@ struct SessionListView: View {
     @Environment(AppModel.self) private var appModel
     @State private var searchText: String = ""
     @State private var showSettings: Bool = false
+    @State private var showServerPicker: Bool = false
     @State private var creatingError: String?
     @State private var sessionToDelete: Session?
 
     var body: some View {
         Group {
             if let error = appModel.startupError {
-                ContentUnavailableViews.connectionError(error, retry: retry)
+                ContentUnavailableViews.connectionError(error, retry: retry, onEditServer: { showServerPicker = true })
+            } else if appModel.serverHealth == nil {
+                LaunchScreenView(onEditServer: { showServerPicker = true })
             } else if appModel.projectStore.projects.isEmpty && !appModel.projectStore.loading {
                 ContentUnavailableViews.noProjects()
             } else if filteredSessions.isEmpty && searchText.isEmpty && !appModel.sessionStore.loading {
@@ -29,6 +32,9 @@ struct SessionListView: View {
         .refreshable(action: refresh)
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showServerPicker) {
+            ServerProfilePickerSheet()
         }
         .alert("Couldn't create session", isPresented: errorBinding) {
             Button("OK", role: .cancel) { creatingError = nil }

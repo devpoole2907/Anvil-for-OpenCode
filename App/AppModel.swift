@@ -49,9 +49,9 @@ final class AppModel {
     // MARK: - Lifecycle
 
     func start() async {
+        startupError = nil
         do {
             serverHealth = try await client.health()
-            startupError = nil
         } catch {
             startupError = OpencodeError(error)
             return

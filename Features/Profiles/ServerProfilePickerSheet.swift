@@ -141,6 +141,12 @@ struct ServerProfilePickerSheet: View {
                 profiles.append(profile)
             }
             profiles.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+            if profile.id == appModel.activeProfile.id {
+                Task {
+                    await appModel.switchProfile(profile)
+                }
+            }
         } catch {
             loadError = error.localizedDescription
         }
